@@ -1,0 +1,14 @@
+name: Update
+
+on:
+    schedule:
+        - cron: "0 6 * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    id-token: write
+
+jobs:
+    update:
+        uses: pdeslaur/oci-common/.github/workflows/update.yaml@main
