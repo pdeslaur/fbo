@@ -72,6 +72,12 @@ pipeline:
           # Remove the build-time .env baked into standalone output; runtime
           # containers must supply real credentials via environment variables.
           rm -f .next/standalone/.env
+          # Sharp installs both glibc and musl variants as optional deps, and
+          # Next.js standalone traces all of them. The musl variants contain
+          # binaries linked against libc.musl-*.so.1, which nothing provides
+          # on wolfi (glibc). Remove them before packaging.
+          rm -rf .next/standalone/node_modules/@img/sharp-linuxmusl-*/
+          rm -rf .next/standalone/node_modules/@img/sharp-libvips-linuxmusl-*/
 
     - name: Install Prisma CLI for runtime migrations
       runs: |
