@@ -9,6 +9,7 @@ package:
         runtime:
             - bash
             - ca-certificates-bundle
+            - musl
             - nodejs-26
             - openssl
 
