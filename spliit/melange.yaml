@@ -9,7 +9,7 @@ package:
         runtime:
             - bash
             - ca-certificates-bundle
-            - musl
+            - glibc
             - nodejs-26
             - openssl
 
@@ -27,6 +27,10 @@ environment:
             - openssl
     environment:
         NEXT_TELEMETRY_DISABLED: "1"
+        # Force npm to select glibc native binaries (Prisma schema engine,
+        # Sharp, etc.). Without this, npm may detect the bubblewrap sandbox
+        # as musl and download musl-linked binaries that won't run on wolfi.
+        npm_config_libc: "glibc"
         # Mock values used at build time. NEXT_PUBLIC_* vars are inlined by
         # Next.js at build time; the app checks for === 'true' so 'false'
         # disables optional features. Runtime containers override everything
