@@ -1,0 +1,116 @@
+package:
+    name: spliit
+    version: "1.30.0"
+    epoch: 0
+    description: Free and Open Source Alternative to Splitwise
+    copyright:
+        - license: MIT
+    dependencies:
+        runtime:
+            - bash
+            - ca-certificates-bundle
+            - nodejs-26
+            - openssl
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+            - ca-certificates-bundle
+            - nodejs-26
+            - npm
+            - openssl
+    environment:
+        NEXT_TELEMETRY_DISABLED: "1"
+        # Mock values used at build time. NEXT_PUBLIC_* vars are inlined by
+        # Next.js at build time; the app checks for === 'true' so 'false'
+        # disables optional features. Runtime containers override everything
+        # except the NEXT_PUBLIC_* flags (which are already baked in).
+        POSTGRES_PRISMA_URL: "postgresql://postgres:1234@db"
+        POSTGRES_URL_NON_POOLING: "postgresql://postgres:1234@db"
+        NEXT_PUBLIC_ENABLE_EXPENSE_DOCUMENTS: "false"
+        NEXT_PUBLIC_ENABLE_RECEIPT_EXTRACT: "false"
+        NEXT_PUBLIC_ENABLE_CATEGORY_EXTRACT: "false"
+        S3_UPLOAD_KEY: "AAAAAAAAAAAAAAAAAAAA"
+        S3_UPLOAD_SECRET: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        S3_UPLOAD_BUCKET: "spliit"
+        S3_UPLOAD_REGION: "eu-north-1"
+        S3_UPLOAD_ENDPOINT: "s3://minio.example.com"
+        OPENAI_API_KEY: "XXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/spliit-app/spliit
+          tag: ${{package.version}}
+          expected-commit: 28d360d2372b51782d8be92de03d73e220b19dc6
+
+    - name: Install dependencies
+      runs: |
+          # --ignore-scripts skips the postinstall which runs prisma migrate
+          # deploy and would fail without a live database.
+          npm ci --ignore-scripts
+
+    - name: Generate Prisma client
+      runs: |
+          # Prisma 7 generates the client into src/generated/prisma; this must
+          # run before next build so the generated types are available.
+          npx prisma generate
+
+    - name: Build
+      runs: |
+          npm run build
+          # Remove the build-time .env baked into standalone output; runtime
+          # containers must supply real credentials via environment variables.
+          rm -f .next/standalone/.env
+
+    - name: Install Prisma CLI for runtime migrations
+      runs: |
+          # The standalone output bundles @prisma/client but not the Prisma CLI
+          # (prisma package), which is needed to run `migrate deploy` at startup.
+          # Install the exact version that was used to generate the client so
+          # the schema engine binary matches.
+          PRISMA_VERSION=$(node -p "require('./node_modules/prisma/package.json').version")
+          mkdir -p /tmp/prisma-cli
+          cd /tmp/prisma-cli
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "prisma@${PRISMA_VERSION}"
+
+    - name: Install
+      runs: |
+          DEST="${{targets.destdir}}/usr/lib/spliit"
+          mkdir -p "$DEST"
+
+          # Standalone server + its traced dependencies
+          cp -r .next/standalone/. "$DEST/"
+          cp -r .next/static "$DEST/.next/static"
+          cp -r public "$DEST/public"
+
+          # Prisma migration files and config read by `migrate deploy` at startup
+          cp -r prisma "$DEST/prisma"
+          cp prisma.config.ts "$DEST/prisma.config.ts"
+
+          # Prisma CLI (with schema engine binary) for `migrate deploy`
+          mkdir -p "$DEST/node_modules"
+          cp -r /tmp/prisma-cli/node_modules/. "$DEST/node_modules/"
+
+          # Entrypoint: migrate then start
+          cat > "$DEST/entrypoint.sh" << 'EOF'
+          #!/bin/bash
+          set -euo pipefail
+          cd /usr/lib/spliit
+          node node_modules/prisma/build/index.js migrate deploy
+          exec node server.js
+          EOF
+          chmod +x "$DEST/entrypoint.sh"
+
+test:
+    pipeline:
+        - runs: |
+              test -f /usr/lib/spliit/server.js
+              test -f /usr/lib/spliit/entrypoint.sh
+              test -f /usr/lib/spliit/node_modules/prisma/build/index.js
