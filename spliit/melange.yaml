@@ -139,8 +139,7 @@ pipeline:
           DEST="${{targets.destdir}}/usr/share/spliit"
           mkdir -p "$DEST"
           cp -r apps/web/dist/. "$DEST/"
-          mkdir -p "${{targets.destdir}}/etc/caddy"
-          cat > "${{targets.destdir}}/etc/caddy/Caddyfile" << 'EOF'
+          cat > "$DEST/Caddyfile" << 'EOF'
           :80 {
               root * /usr/share/spliit
 
@@ -174,4 +173,4 @@ test:
     pipeline:
         - runs: |
               test -f /usr/share/spliit/index.html
-              test -f /etc/caddy/Caddyfile
+              test -f /usr/share/spliit/Caddyfile

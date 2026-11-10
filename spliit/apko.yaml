@@ -6,7 +6,7 @@ contents:
         - spliit
 
 entrypoint:
-    command: caddy run --config /etc/caddy/Caddyfile
+    command: caddy run --config /usr/share/spliit/Caddyfile
 
 archs:
     - x86_64
