@@ -62,6 +62,34 @@ services:
 
 See the [upstream deployment docs](https://github.com/antonio-ivanovski/spliit-cloud/blob/main/docs/deployment.md) for the full configuration reference.
 
+## Network security
+
+The API server enables `TRUST_PROXY`, which means it trusts client IP headers for rate limiting. To prevent IP spoofing:
+
+**Strip incoming IP headers at the proxy (always recommended).** The Caddy config in this image already strips any client-supplied `X-Forwarded-For` and `X-Real-IP` before setting its own, so traffic routed through Caddy is safe.
+
+**Isolate the API from untrusted networks.** The API binds to `0.0.0.0:3001` by default, so it is reachable on every interface — including any DMZ or public VLAN the host is on. Do not expose port 3001 outside the Docker network. Use an internal Docker network to ensure only the Caddy sidecar can reach the API:
+
+```yaml
+networks:
+  internal:
+    internal: true   # no external routing
+
+services:
+  api:
+    networks: [internal]
+  worker:
+    networks: [internal]
+  web:
+    networks: [internal]
+    ports:
+      - "127.0.0.1:3000:80"   # only Caddy faces the outside
+  db:
+    networks: [internal]
+```
+
+**Single-host / Kubernetes pod deployments.** If Caddy and the API run on the same host or in the same pod (sharing a loopback), set `BIND_HOST=127.0.0.1` on the API container so it only listens on the loopback interface. Do not set this in a multi-container Docker Compose setup where Caddy and the API are separate containers — they communicate over the Docker bridge, not loopback.
+
 ## Configuration
 
 The API reads all feature flags and secrets at runtime — nothing is baked into the image. See [env.ts](https://github.com/antonio-ivanovski/spliit-cloud/blob/main/apps/api/src/lib/env.ts) for the full schema.
@@ -73,6 +101,7 @@ The API reads all feature flags and secrets at runtime — nothing is baked into
 | `APP_URL` | yes | Public HTTPS origin (sets `WEB_ORIGINS` and `BETTER_AUTH_URL`) |
 | `SMTP_HOST` + `EMAIL_FROM` | yes (email auth) | SMTP config for sending emails |
 | `EMAIL_UNSUBSCRIBE_SECRET` | yes (email auth) | Unsubscribe HMAC secret, min 32 bytes |
+| `BIND_HOST` | no | Interface the API listens on (default `0.0.0.0`). Set to `127.0.0.1` on single-host / pod deployments; leave unset for Docker Compose (see [Network security](#network-security)) |
 
 The web SPA bakes `VITE_DEFAULT_CURRENCY_CODE=USD` at build time. All `PUBLIC_ENABLE_*` feature flags are runtime API variables.
 
