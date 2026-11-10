@@ -1,17 +1,82 @@
 package:
     name: spliit
-    version: "1.30.0"
+    version: "2.10.2"
     epoch: 0
-    description: Free and Open Source Alternative to Splitwise
+    description: Spliit Cloud web static files and nginx proxy config
     copyright:
         - license: MIT
     dependencies:
         runtime:
-            - bash
-            - ca-certificates-bundle
-            - glibc
-            - nodejs-26
-            - openssl
+            - nginx-mainline
+
+subpackages:
+    - name: spliit-api
+      description: Spliit Cloud API server
+      dependencies:
+          runtime:
+              - bun
+              - ca-certificates-bundle
+      pipeline:
+          - name: Install API
+            runs: |
+                DEST="${{targets.destdir}}/usr/lib/spliit-cloud/api"
+                mkdir -p "$DEST/dist" "$DEST/fonts" "$DEST/assets"
+                cp -r apps/api/dist/. "$DEST/dist/"
+                cp apps/api/openapi.json "$DEST/"
+                cp -r apps/api/src/lib/og/fonts/. "$DEST/fonts/"
+                cp -r apps/api/src/lib/og/assets/. "$DEST/assets/"
+      test:
+          pipeline:
+              - runs: |
+                    test -f /usr/lib/spliit-cloud/api/dist/server.js
+                    test -f /usr/lib/spliit-cloud/api/openapi.json
+
+    - name: spliit-worker
+      description: Spliit Cloud background worker
+      dependencies:
+          runtime:
+              - bun
+              - ca-certificates-bundle
+      pipeline:
+          - name: Install worker
+            runs: |
+                DEST="${{targets.destdir}}/usr/lib/spliit-cloud/worker"
+                mkdir -p "$DEST"
+                cp apps/worker/dist/server.js "$DEST/"
+      test:
+          pipeline:
+              - runs: |
+                    test -f /usr/lib/spliit-cloud/worker/server.js
+
+    - name: spliit-migrate
+      description: Spliit Cloud database migration runner
+      dependencies:
+          runtime:
+              - bash
+              - bun
+              - ca-certificates-bundle
+      pipeline:
+          - name: Install migrate
+            runs: |
+                DEST="${{targets.destdir}}/usr/lib/spliit-cloud/migrate"
+                mkdir -p "$DEST/node_modules"
+                cp -r packages/db/prisma "$DEST/"
+                cp -r node_modules/prisma "$DEST/node_modules/"
+                cp -r node_modules/@prisma "$DEST/node_modules/"
+                cat > "$DEST/entrypoint.sh" << 'EOF'
+                #!/bin/bash
+                set -euo pipefail
+                exec bun /usr/lib/spliit-cloud/migrate/node_modules/prisma/build/index.js \
+                    migrate deploy \
+                    --schema /usr/lib/spliit-cloud/migrate/prisma/schema.prisma
+                EOF
+                chmod +x "$DEST/entrypoint.sh"
+      test:
+          pipeline:
+              - runs: |
+                    test -f /usr/lib/spliit-cloud/migrate/prisma/schema.prisma
+                    test -f /usr/lib/spliit-cloud/migrate/entrypoint.sh
+                    test -f /usr/lib/spliit-cloud/migrate/node_modules/prisma/build/index.js
 
 environment:
     contents:
@@ -22,106 +87,68 @@ environment:
         packages:
             - busybox
             - ca-certificates-bundle
-            - nodejs-26
-            - npm
-            - openssl
+            - bun
     environment:
+        # Disable Next.js telemetry; also suppresses any Vite telemetry prompts.
         NEXT_TELEMETRY_DISABLED: "1"
-        # Force npm to select glibc native binaries (Prisma schema engine,
-        # Sharp, etc.). Without this, npm may detect the bubblewrap sandbox
-        # as musl and download musl-linked binaries that won't run on wolfi.
-        npm_config_libc: "glibc"
-        # Mock values used at build time. NEXT_PUBLIC_* vars are inlined by
-        # Next.js at build time; the app checks for === 'true' so 'false'
-        # disables optional features. Runtime containers override everything
-        # except the NEXT_PUBLIC_* flags (which are already baked in).
-        POSTGRES_PRISMA_URL: "postgresql://postgres:1234@db"
-        POSTGRES_URL_NON_POOLING: "postgresql://postgres:1234@db"
-        NEXT_PUBLIC_ENABLE_EXPENSE_DOCUMENTS: "false"
-        NEXT_PUBLIC_ENABLE_RECEIPT_EXTRACT: "false"
-        NEXT_PUBLIC_ENABLE_CATEGORY_EXTRACT: "false"
-        S3_UPLOAD_KEY: "AAAAAAAAAAAAAAAAAAAA"
-        S3_UPLOAD_SECRET: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-        S3_UPLOAD_BUCKET: "spliit"
-        S3_UPLOAD_REGION: "eu-north-1"
-        S3_UPLOAD_ENDPOINT: "s3://minio.example.com"
-        OPENAI_API_KEY: "XXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        # Baked into the web SPA at build time. Can be overridden by rebuilding
+        # the image; the API reads PUBLIC_DEFAULT_CURRENCY_CODE at runtime.
+        VITE_DEFAULT_CURRENCY_CODE: "USD"
+        # Skip better-auth DB introspection during OpenAPI spec generation so
+        # the step does not need a live database.
+        SKIP_AUTH_OPENAPI: "1"
+        # NODE_ENV is intentionally not set to "production" here so that the
+        # API env schema does not enforce BETTER_AUTH_SECRET, SMTP_HOST, etc.
+        # during the openapi generation step.
+        NODE_ENV: "development"
 
 pipeline:
     - uses: git-checkout
       with:
-          repository: https://github.com/spliit-app/spliit
-          tag: ${{package.version}}
-          expected-commit: 28d360d2372b51782d8be92de03d73e220b19dc6
+          repository: https://github.com/antonio-ivanovski/spliit-cloud
+          tag: v${{package.version}}
+          expected-commit: 2f729fd5fbcc84c2edf051faafcfd024d254c732
 
     - name: Install dependencies
       runs: |
-          # --ignore-scripts skips the postinstall which runs prisma migrate
-          # deploy and would fail without a live database.
-          npm ci --ignore-scripts
+          bun install --frozen-lockfile
 
     - name: Generate Prisma client
       runs: |
-          # Prisma 7 generates the client into src/generated/prisma; this must
-          # run before next build so the generated types are available.
-          npx prisma generate
+          bun run --filter @spliit/db prisma generate
 
-    - name: Build
+    - name: Build web
       runs: |
-          npm run build
-          # Remove the build-time .env baked into standalone output; runtime
-          # containers must supply real credentials via environment variables.
-          rm -f .next/standalone/.env
-          # Sharp installs both glibc and musl variants as optional deps, and
-          # Next.js standalone traces all of them. The musl variants contain
-          # binaries linked against libc.musl-*.so.1, which nothing provides
-          # on wolfi (glibc). Remove them before packaging.
-          rm -rf .next/standalone/node_modules/@img/sharp-linuxmusl-*/
-          rm -rf .next/standalone/node_modules/@img/sharp-libvips-linuxmusl-*/
+          bun run --filter @spliit/web build
 
-    - name: Install Prisma CLI for runtime migrations
+    - name: Generate OpenAPI spec
       runs: |
-          # The standalone output bundles @prisma/client but not the Prisma CLI
-          # (prisma package), which is needed to run `migrate deploy` at startup.
-          # Install the exact version that was used to generate the client so
-          # the schema engine binary matches.
-          PRISMA_VERSION=$(node -p "require('./node_modules/prisma/package.json').version")
-          mkdir -p /tmp/prisma-cli
-          cd /tmp/prisma-cli
-          npm init -y > /dev/null
-          npm install --no-audit --no-fund "prisma@${PRISMA_VERSION}"
+          cd apps/api
+          bun run generate-openapi
+          cd ../..
 
-    - name: Install
+    - name: Bundle API
       runs: |
-          DEST="${{targets.destdir}}/usr/lib/spliit"
+          cd apps/api
+          bun run bundle:runtime
+          cd ../..
+
+    - name: Bundle worker
+      runs: |
+          cd apps/worker
+          bun run bundle:runtime
+          cd ../..
+
+    - name: Install web
+      runs: |
+          DEST="${{targets.destdir}}/usr/share/nginx/html"
           mkdir -p "$DEST"
-
-          # Standalone server + its traced dependencies
-          cp -r .next/standalone/. "$DEST/"
-          cp -r .next/static "$DEST/.next/static"
-          cp -r public "$DEST/public"
-
-          # Prisma migration files and config read by `migrate deploy` at startup
-          cp -r prisma "$DEST/prisma"
-          cp prisma.config.ts "$DEST/prisma.config.ts"
-
-          # Prisma CLI (with schema engine binary) for `migrate deploy`
-          mkdir -p "$DEST/node_modules"
-          cp -r /tmp/prisma-cli/node_modules/. "$DEST/node_modules/"
-
-          # Entrypoint: migrate then start
-          cat > "$DEST/entrypoint.sh" << 'EOF'
-          #!/bin/bash
-          set -euo pipefail
-          cd /usr/lib/spliit
-          node node_modules/prisma/build/index.js migrate deploy
-          exec node server.js
-          EOF
-          chmod +x "$DEST/entrypoint.sh"
+          cp -r apps/web/dist/. "$DEST/"
+          mkdir -p "${{targets.destdir}}/etc/nginx/conf.d"
+          cp nginx.web.conf "${{targets.destdir}}/etc/nginx/conf.d/default.conf"
 
 test:
     pipeline:
         - runs: |
-              test -f /usr/lib/spliit/server.js
-              test -f /usr/lib/spliit/entrypoint.sh
-              test -f /usr/lib/spliit/node_modules/prisma/build/index.js
+              test -f /usr/share/nginx/html/index.html
+              test -f /etc/nginx/conf.d/default.conf
