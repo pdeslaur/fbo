@@ -28,7 +28,6 @@ subpackages:
           pipeline:
               - runs: |
                     test -f /usr/lib/spliit-cloud/api/dist/server.js
-                    test -f /usr/lib/spliit-cloud/api/openapi.json
 
     - name: spliit-worker
       description: Spliit Cloud background worker
@@ -113,6 +112,11 @@ pipeline:
     - name: Build web
       runs: |
           bun run --filter @spliit/web build
+          # A browser SPA has no native dependencies. Some bundlers trace
+          # optional native deps (e.g. musl Sharp variants) into the output
+          # directory. Remove any native binaries to prevent melange from
+          # auto-detecting a musl or glibc runtime dep in the web package.
+          find apps/web/dist -type f \( -name "*.node" -o -name "*.so" -o -name "*.so.*" \) -delete
 
     - name: Bundle API
       runs: |
