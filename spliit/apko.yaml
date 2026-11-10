@@ -2,15 +2,11 @@ contents:
     packages:
         - wolfi-baselayout
         - ca-certificates-bundle
-        - nginx-mainline
-        - nginx-mainline-config
+        - caddy
         - spliit
 
 entrypoint:
-    command: nginx -g "daemon off;"
-
-environment:
-    NGINX_ENTRYPOINT_QUIET_LOGS: "1"
+    command: caddy run --config /etc/caddy/Caddyfile
 
 archs:
     - x86_64
