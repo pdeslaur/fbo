@@ -22,7 +22,6 @@ subpackages:
                 DEST="${{targets.destdir}}/usr/lib/spliit-cloud/api"
                 mkdir -p "$DEST/dist" "$DEST/fonts" "$DEST/assets"
                 cp -r apps/api/dist/. "$DEST/dist/"
-                cp apps/api/openapi.json "$DEST/"
                 cp -r apps/api/src/lib/og/fonts/. "$DEST/fonts/"
                 cp -r apps/api/src/lib/og/assets/. "$DEST/assets/"
       test:
@@ -89,18 +88,12 @@ environment:
             - ca-certificates-bundle
             - bun
     environment:
-        # Disable Next.js telemetry; also suppresses any Vite telemetry prompts.
-        NEXT_TELEMETRY_DISABLED: "1"
-        # Baked into the web SPA at build time. Can be overridden by rebuilding
-        # the image; the API reads PUBLIC_DEFAULT_CURRENCY_CODE at runtime.
+        # Baked into the web SPA at build time; the API reads
+        # PUBLIC_DEFAULT_CURRENCY_CODE at runtime independently.
         VITE_DEFAULT_CURRENCY_CODE: "USD"
-        # Skip better-auth DB introspection during OpenAPI spec generation so
-        # the step does not need a live database.
-        SKIP_AUTH_OPENAPI: "1"
-        # NODE_ENV is intentionally not set to "production" here so that the
-        # API env schema does not enforce BETTER_AUTH_SECRET, SMTP_HOST, etc.
-        # during the openapi generation step.
-        NODE_ENV: "development"
+        # Mock DATABASE_URL so Prisma can resolve the datasource URL during
+        # client generation without hitting an actual database.
+        DATABASE_URL: "postgresql://postgres:1234@localhost/spliit"
 
 pipeline:
     - uses: git-checkout
@@ -120,12 +113,6 @@ pipeline:
     - name: Build web
       runs: |
           bun run --filter @spliit/web build
-
-    - name: Generate OpenAPI spec
-      runs: |
-          cd apps/api
-          bun run generate-openapi
-          cd ../..
 
     - name: Bundle API
       runs: |
