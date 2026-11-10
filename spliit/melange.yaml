@@ -60,8 +60,8 @@ subpackages:
                 DEST="${{targets.destdir}}/usr/lib/spliit-cloud/migrate"
                 mkdir -p "$DEST/node_modules"
                 cp -r packages/db/prisma "$DEST/"
-                cp -r node_modules/prisma "$DEST/node_modules/"
-                cp -r node_modules/@prisma "$DEST/node_modules/"
+                cp -r /tmp/prisma-runtime/node_modules/prisma "$DEST/node_modules/"
+                cp -r /tmp/prisma-runtime/node_modules/@prisma "$DEST/node_modules/"
                 cat > "$DEST/entrypoint.sh" << 'EOF'
                 #!/bin/bash
                 set -euo pipefail
@@ -125,6 +125,14 @@ pipeline:
           cd apps/worker
           bun run bundle:runtime
           cd ../..
+
+    - name: Install prisma CLI for runtime migrations
+      runs: |
+          PRISMA_VERSION=$(bun -e "const p=require('./packages/db/package.json');console.log(p.devDependencies.prisma.replace(/^[^0-9]*/,''))")
+          mkdir -p /tmp/prisma-runtime
+          cd /tmp/prisma-runtime
+          bun init -y > /dev/null 2>&1
+          bun add "prisma@${PRISMA_VERSION}"
 
     - name: Install web
       runs: |
