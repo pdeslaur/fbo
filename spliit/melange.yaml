@@ -2,7 +2,7 @@ package:
     name: spliit
     version: "2.10.2"
     epoch: 0
-    description: Spliit Cloud web static files and nginx proxy config
+    description: Spliit Cloud web static files and Caddy proxy config
     copyright:
         - license: MIT
     dependencies:
@@ -17,13 +17,11 @@ subpackages:
               - bun
               - ca-certificates-bundle
       pipeline:
-          - name: Install API
+          - name: Move API files
             runs: |
-                DEST="${{targets.destdir}}/usr/lib/spliit-cloud/api"
-                mkdir -p "$DEST/dist" "$DEST/fonts" "$DEST/assets"
-                cp -r apps/api/dist/. "$DEST/dist/"
-                cp -r apps/api/src/lib/og/fonts/. "$DEST/fonts/"
-                cp -r apps/api/src/lib/og/assets/. "$DEST/assets/"
+                mkdir -p "${{targets.contextdir}}/usr/lib/spliit-cloud"
+                mv "${{targets.destdir}}/usr/lib/spliit-cloud/api" \
+                   "${{targets.contextdir}}/usr/lib/spliit-cloud/"
       test:
           pipeline:
               - runs: |
@@ -36,11 +34,11 @@ subpackages:
               - bun
               - ca-certificates-bundle
       pipeline:
-          - name: Install worker
+          - name: Move worker files
             runs: |
-                DEST="${{targets.destdir}}/usr/lib/spliit-cloud/worker"
-                mkdir -p "$DEST"
-                cp apps/worker/dist/server.js "$DEST/"
+                mkdir -p "${{targets.contextdir}}/usr/lib/spliit-cloud"
+                mv "${{targets.destdir}}/usr/lib/spliit-cloud/worker" \
+                   "${{targets.contextdir}}/usr/lib/spliit-cloud/"
       test:
           pipeline:
               - runs: |
@@ -54,21 +52,11 @@ subpackages:
               - bun
               - ca-certificates-bundle
       pipeline:
-          - name: Install migrate
+          - name: Move migrate files
             runs: |
-                DEST="${{targets.destdir}}/usr/lib/spliit-cloud/migrate"
-                mkdir -p "$DEST/node_modules"
-                cp -r packages/db/prisma "$DEST/"
-                cp -r /tmp/prisma-runtime/node_modules/prisma "$DEST/node_modules/"
-                cp -r /tmp/prisma-runtime/node_modules/@prisma "$DEST/node_modules/"
-                cat > "$DEST/entrypoint.sh" << 'EOF'
-                #!/bin/bash
-                set -euo pipefail
-                exec bun /usr/lib/spliit-cloud/migrate/node_modules/prisma/build/index.js \
-                    migrate deploy \
-                    --schema /usr/lib/spliit-cloud/migrate/prisma/schema.prisma
-                EOF
-                chmod +x "$DEST/entrypoint.sh"
+                mkdir -p "${{targets.contextdir}}/usr/lib/spliit-cloud"
+                mv "${{targets.destdir}}/usr/lib/spliit-cloud/migrate" \
+                   "${{targets.contextdir}}/usr/lib/spliit-cloud/"
       test:
           pipeline:
               - runs: |
@@ -114,15 +102,22 @@ pipeline:
           bun run --filter @spliit/web build
           # A browser SPA has no native dependencies. Some bundlers trace
           # optional native deps (e.g. musl Sharp variants) into the output
-          # directory. Remove any native binaries to prevent melange from
+          # directory. Remove any ELF binaries to prevent melange from
           # auto-detecting a musl or glibc runtime dep in the web package.
-          find apps/web/dist -type f \( -name "*.node" -o -name "*.so" -o -name "*.so.*" \) -delete
+          find apps/web/dist -type f -exec sh -c '
+              if file "$1" | grep -q ELF; then
+                  echo "Removing ELF binary from web dist: $1"
+                  rm "$1"
+              fi
+          ' _ {} \;
 
     - name: Bundle API
       runs: |
           cd apps/api
           bun run bundle:runtime
           cd ../..
+          # Remove musl-linked native addons; Wolfi uses glibc, keep only gnu variants.
+          find apps/api/dist -name "*musl*.node" -delete
 
     - name: Bundle worker
       runs: |
@@ -138,7 +133,7 @@ pipeline:
           bun init -y > /dev/null 2>&1
           bun add "prisma@${PRISMA_VERSION}"
 
-    - name: Install web
+    - name: Install web files
       runs: |
           DEST="${{targets.destdir}}/usr/share/spliit"
           mkdir -p "$DEST"
@@ -172,6 +167,36 @@ pipeline:
               file_server
           }
           EOF
+
+    - name: Install API files
+      runs: |
+          DEST="${{targets.destdir}}/usr/lib/spliit-cloud/api"
+          mkdir -p "$DEST/dist" "$DEST/fonts" "$DEST/assets"
+          cp -r apps/api/dist/. "$DEST/dist/"
+          cp -r apps/api/src/lib/og/fonts/. "$DEST/fonts/"
+          cp -r apps/api/src/lib/og/assets/. "$DEST/assets/"
+
+    - name: Install worker files
+      runs: |
+          DEST="${{targets.destdir}}/usr/lib/spliit-cloud/worker"
+          mkdir -p "$DEST"
+          cp apps/worker/dist/server.js "$DEST/"
+
+    - name: Install migrate files
+      runs: |
+          DEST="${{targets.destdir}}/usr/lib/spliit-cloud/migrate"
+          mkdir -p "$DEST/node_modules"
+          cp -r packages/db/prisma "$DEST/"
+          cp -r /tmp/prisma-runtime/node_modules/prisma "$DEST/node_modules/"
+          cp -r /tmp/prisma-runtime/node_modules/@prisma "$DEST/node_modules/"
+          cat > "$DEST/entrypoint.sh" << 'EOF'
+          #!/bin/bash
+          set -euo pipefail
+          exec bun /usr/lib/spliit-cloud/migrate/node_modules/prisma/build/index.js \
+              migrate deploy \
+              --schema /usr/lib/spliit-cloud/migrate/prisma/schema.prisma
+          EOF
+          chmod +x "$DEST/entrypoint.sh"
 
 test:
     pipeline:

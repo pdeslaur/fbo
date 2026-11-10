@@ -6,7 +6,7 @@ Four images are published from this repo:
 
 | Image | Description |
 |---|---|
-| `ghcr.io/pdeslaur/oci-spliit` | nginx proxy + web SPA |
+| `ghcr.io/pdeslaur/oci-spliit` | Caddy proxy + web SPA |
 | `ghcr.io/pdeslaur/oci-spliit-api` | Hono/tRPC API server (port 3001) |
 | `ghcr.io/pdeslaur/oci-spliit-worker` | Background job worker |
 | `ghcr.io/pdeslaur/oci-spliit-migrate` | One-shot Prisma migration runner |
