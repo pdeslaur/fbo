@@ -1,0 +1,17 @@
+contents:
+    packages:
+        - wolfi-baselayout
+        - ca-certificates-bundle
+        - bash
+        - bun
+        - spliit-migrate
+
+entrypoint:
+    command: /bin/bash /usr/lib/spliit-cloud/migrate/entrypoint.sh
+
+environment:
+    NODE_ENV: production
+
+archs:
+    - x86_64
+    - aarch64

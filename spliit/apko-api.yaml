@@ -1,0 +1,17 @@
+contents:
+    packages:
+        - wolfi-baselayout
+        - ca-certificates-bundle
+        - bun
+        - spliit-api
+
+entrypoint:
+    command: bun /usr/lib/spliit-cloud/api/dist/server.js
+
+environment:
+    NODE_ENV: production
+    PORT: "3001"
+
+archs:
+    - x86_64
+    - aarch64
