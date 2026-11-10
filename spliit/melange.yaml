@@ -89,6 +89,14 @@ pipeline:
           tag: v${{package.version}}
           expected-commit: 2f729fd5fbcc84c2edf051faafcfd024d254c732
 
+    - name: Patch API bind address
+      runs: |
+          # Upstream hardcodes hostname: '0.0.0.0'. Patch it to read BIND_HOST
+          # so operators can restrict the listening address (e.g. to a loopback
+          # or specific interface) without forking the project.
+          sed -i "s/hostname: '0.0.0.0'/hostname: process.env.BIND_HOST ?? '0.0.0.0'/" \
+              apps/api/src/server.ts
+
     - name: Install dependencies
       runs: |
           bun install --frozen-lockfile
@@ -157,6 +165,10 @@ pipeline:
               }
 
               reverse_proxy @api api:3001 {
+                  # Strip any client-supplied IP headers before setting our own,
+                  # so TRUST_PROXY in the API only trusts what Caddy actually set.
+                  header_up -X-Forwarded-For
+                  header_up -X-Real-IP
                   header_up X-Real-IP {remote_host}
               }
 
