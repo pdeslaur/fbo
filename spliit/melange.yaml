@@ -60,9 +60,9 @@ subpackages:
       test:
           pipeline:
               - runs: |
-                    test -f /usr/lib/spliit-cloud/migrate/prisma/schema.prisma
-                    test -f /usr/lib/spliit-cloud/migrate/entrypoint.sh
-                    test -f /usr/lib/spliit-cloud/migrate/node_modules/prisma/build/index.js
+                    cd /usr/lib/spliit-cloud/migrate
+                    DATABASE_URL=postgresql://x:x@localhost/x \
+                        bun node_modules/prisma/build/index.js validate --config prisma.config.ts
 
 environment:
     contents:
@@ -197,16 +197,28 @@ pipeline:
     - name: Install migrate files
       runs: |
           DEST="${{targets.destdir}}/usr/lib/spliit-cloud/migrate"
-          mkdir -p "$DEST/node_modules"
+          mkdir -p "$DEST"
           cp -r packages/db/prisma "$DEST/"
-          cp -r /tmp/prisma-runtime/node_modules/prisma "$DEST/node_modules/"
-          cp -r /tmp/prisma-runtime/node_modules/@prisma "$DEST/node_modules/"
+          # Copy the full node_modules tree so prisma's own deps (effect, c12,
+          # etc.) are present alongside prisma/ and @prisma/.
+          cp -r /tmp/prisma-runtime/node_modules "$DEST/"
+          # Prisma 7 reads datasource URL from its config file, not the schema.
+          # Upstream's config loads dotenv; this minimal version skips that.
+          cat > "$DEST/prisma.config.ts" << 'EOF'
+          import { defineConfig, env } from 'prisma/config'
+
+          export default defineConfig({
+            schema: 'prisma/schema.prisma',
+            migrations: { path: 'prisma/migrations' },
+            datasource: { url: env('DATABASE_URL') },
+          })
+          EOF
           cat > "$DEST/entrypoint.sh" << 'EOF'
           #!/bin/bash
           set -euo pipefail
-          exec bun /usr/lib/spliit-cloud/migrate/node_modules/prisma/build/index.js \
-              migrate deploy \
-              --schema /usr/lib/spliit-cloud/migrate/prisma/schema.prisma
+          cd /usr/lib/spliit-cloud/migrate
+          exec bun node_modules/prisma/build/index.js migrate deploy \
+              --config prisma.config.ts
           EOF
           chmod +x "$DEST/entrypoint.sh"
 
