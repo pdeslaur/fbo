@@ -16,6 +16,8 @@ pipeline, and, when `publish: true`, publishes `apko.yaml` to
 `ghcr.io/<repository>` tagged `latest` and `<package version>` and signs it
 with [cosign](https://github.com/sigstore/cosign) keyless signing. Scheduled
 runs bypass the package cache so that Wolfi toolchain fixes are picked up.
+melange runs in the `cgr.dev/chainguard/melange:latest-dev` container, pinned
+by digest, so builds don't depend on the runner's apt mirrors.
 
 ```yaml
 jobs:
