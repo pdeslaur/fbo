@@ -4,7 +4,7 @@ on:
     pull_request:
     push:
         branches:
-            - master
+            - main
     schedule:
         # Daily rebuild to pick up Wolfi package fixes.
         - cron: "0 7 * * *"
