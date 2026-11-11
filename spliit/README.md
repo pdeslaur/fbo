@@ -2,7 +2,7 @@
 
 OCI images for [Spliit Cloud](https://github.com/antonio-ivanovski/spliit-cloud) — an open-source, self-hosted expense splitter with accounts, sync, and more. Built from source using melange + apko on Wolfi.
 
-Four images are published from this repo:
+## Images
 
 | Image | Description |
 |---|---|
@@ -11,7 +11,18 @@ Four images are published from this repo:
 | `ghcr.io/pdeslaur/oci-spliit-worker` | Background job worker |
 | `ghcr.io/pdeslaur/oci-spliit-migrate` | One-shot Prisma migration runner |
 
-## Deployment
+Each is published for `linux/amd64` and `linux/arm64`, tagged `latest` and with
+the Spliit Cloud version. They're built from [`melange.yaml`](melange.yaml) and
+the `apko*.yaml` files by this repo's [build workflow](.github/workflows/build.yaml),
+and rebuilt daily to pick up Wolfi fixes. Verify an image's signature with:
+
+```sh
+cosign verify ghcr.io/pdeslaur/oci-spliit:latest \
+    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+    --certificate-identity https://github.com/pdeslaur/oci-spliit/.github/workflows/build.yaml@refs/heads/main
+```
+
+## Usage
 
 The images follow the same service layout as the [upstream compose.yaml](https://github.com/antonio-ivanovski/spliit-cloud/blob/main/compose.yaml). The web container proxies API traffic to a service named `api` on port 3001.
 
@@ -107,4 +118,4 @@ The web SPA bakes `VITE_DEFAULT_CURRENCY_CODE=USD` at build time. All `PUBLIC_EN
 
 ## Updates
 
-The [update workflow](.github/workflows/update.yaml) runs daily and opens an auto-merging pull request when Spliit Cloud publishes a new release.
+A daily [update workflow](.github/workflows/update.yaml) bumps Spliit Cloud to its latest release and opens a pull request that merges once the build passes. See [oci-common](https://github.com/pdeslaur/oci-common#melange-update) for how.
