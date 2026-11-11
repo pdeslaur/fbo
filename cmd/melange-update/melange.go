@@ -21,7 +21,11 @@ type source struct {
 	Owner string
 	Repo  string
 	// TagTemplate is the git-checkout tag, e.g. "v${{package.version}}".
-	TagTemplate    string
+	// Empty for branch-based sources.
+	TagTemplate string
+	// Branch is the tracked branch for repos without releases.
+	// Empty for tag-based sources.
+	Branch         string
 	ExpectedCommit string
 }
 
@@ -52,6 +56,7 @@ type melangeConfig struct {
 		With struct {
 			Repository     string `yaml:"repository"`
 			Tag            string `yaml:"tag"`
+			Branch         string `yaml:"branch"`
 			ExpectedCommit string `yaml:"expected-commit"`
 		} `yaml:"with"`
 	} `yaml:"pipeline"`
@@ -81,12 +86,20 @@ func parseSource(data []byte) (source, error) {
 		}
 		s.Owner, s.Repo = owner, repo
 		s.TagTemplate = step.With.Tag
+		s.Branch = step.With.Branch
 		s.ExpectedCommit = step.With.ExpectedCommit
 	}
 	if found != 1 {
 		return source{}, fmt.Errorf("expected exactly one git-checkout step, found %d", found)
 	}
-	if !strings.Contains(s.TagTemplate, versionPlaceholder) {
+	switch {
+	case s.Branch != "" && s.TagTemplate != "":
+		return source{}, fmt.Errorf("git-checkout has both tag and branch set")
+	case s.Branch != "":
+		// Branch-based mode: version is derived from commit date, no tag template.
+	case strings.Contains(s.TagTemplate, versionPlaceholder):
+		// Tag-based mode: tag encodes the package version.
+	default:
 		return source{}, fmt.Errorf("git-checkout tag %q does not reference %s", s.TagTemplate, versionPlaceholder)
 	}
 	if s.ExpectedCommit == "" {

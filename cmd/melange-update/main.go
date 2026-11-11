@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/chainguard-dev/clog"
 	"github.com/sethvargo/go-envconfig"
@@ -52,7 +53,15 @@ func main() {
 
 	var updates []update
 
-	data, pkgUpdate, err := updatePackage(ctx, githubClient{token: cfg.GitHubToken}, data, src)
+	gh := githubClient{token: cfg.GitHubToken}
+	var pkgUpdate *update
+	var pkgVersionChanged bool
+	if src.Branch != "" {
+		data, pkgUpdate, pkgVersionChanged, err = updatePackageBranch(ctx, gh, data, src)
+	} else {
+		data, pkgUpdate, err = updatePackage(ctx, gh, data, src)
+		pkgVersionChanged = pkgUpdate != nil
+	}
 	if err != nil {
 		clog.FatalContextf(ctx, "updating package: %v", err)
 	}
@@ -73,7 +82,7 @@ func main() {
 	}
 
 	epoch := src.Epoch + 1
-	if pkgUpdate != nil {
+	if pkgVersionChanged {
 		epoch = 0
 	}
 	if data, err = setEpoch(data, epoch); err != nil {
@@ -127,6 +136,37 @@ func updatePackage(ctx context.Context, gh githubClient, data []byte, src source
 		To:   latestTag,
 		URL:  fmt.Sprintf("https://github.com/%s/%s/releases/tag/%s", src.Owner, src.Repo, url.PathEscape(latestTag)),
 	}, nil
+}
+
+// updatePackageBranch bumps the package to the latest commit on the tracked
+// branch. The version is derived from the commit date as YYYY.MM.DD. It
+// returns a nil update if the branch head matches the pinned expected-commit.
+// The versionChanged bool reports whether the YYYY.MM.DD version changed, so
+// the caller can decide whether to reset the epoch.
+func updatePackageBranch(ctx context.Context, gh githubClient, data []byte, src source) ([]byte, *update, bool, error) {
+	ctx = clog.WithValues(ctx, "upstream", src.Owner+"/"+src.Repo, "branch", src.Branch)
+
+	commit, date, err := gh.branchHeadCommit(ctx, src.Owner, src.Repo, src.Branch)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("fetching branch head: %w", err)
+	}
+	clog.InfoContext(ctx, "branch commit check", "current", src.ExpectedCommit[:8], "latest", commit[:8])
+	if commit == src.ExpectedCommit {
+		return data, nil, false, nil
+	}
+
+	latest := date.UTC().Format("2006.01.02")
+	versionChanged := latest != src.Version
+	data, err = patchConfig(data, src, latest, commit)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	return data, &update{
+		Name: src.Name,
+		From: src.ExpectedCommit[:8],
+		To:   commit[:8],
+		URL:  fmt.Sprintf("https://github.com/%s/%s/commit/%s", src.Owner, src.Repo, commit),
+	}, versionChanged, nil
 }
 
 // updateGoModules bumps each Go module pinned with "go get" to its latest
@@ -203,6 +243,21 @@ func (c githubClient) tagCommit(ctx context.Context, owner, repo, tag string) (s
 		return "", err
 	}
 	return r.SHA, nil
+}
+
+func (c githubClient) branchHeadCommit(ctx context.Context, owner, repo, branch string) (sha string, date time.Time, err error) {
+	var r struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Committer struct {
+				Date time.Time `json:"date"`
+			} `json:"committer"`
+		} `json:"commit"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("repos/%s/%s/commits/%s", owner, repo, url.PathEscape(branch)), &r); err != nil {
+		return "", time.Time{}, err
+	}
+	return r.SHA, r.Commit.Committer.Date, nil
 }
 
 func (c githubClient) get(ctx context.Context, path string, out any) error {

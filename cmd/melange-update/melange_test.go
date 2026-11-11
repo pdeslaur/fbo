@@ -41,6 +41,16 @@ func TestParseSource(t *testing.T) {
 			TagTemplate:    "v${{package.version}}",
 			ExpectedCommit: "335a27ef7083277a7c54065223183ec6f538296c",
 		},
+	}, {
+		file: "testdata/splitwise-for-ynab.yaml",
+		want: source{
+			Name:           "splitwise-for-ynab",
+			Version:        "2026.11.09",
+			Owner:          "danthareja",
+			Repo:           "splitwise_for_ynab",
+			Branch:         "main",
+			ExpectedCommit: "d7b4a911fd9c1f2633255380bb97b5e95dbc6c12",
+		},
 	}} {
 		t.Run(tt.file, func(t *testing.T) {
 			got, err := parseSource(readFile(t, tt.file))
@@ -122,6 +132,32 @@ pipeline:
     with:
       repository: https://github.com/a/b
       tag: v${{package.version}}
+`,
+	}, {
+		name: "both tag and branch",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/a/b
+      tag: v${{package.version}}
+      branch: main
+      expected-commit: abc
+`,
+	}, {
+		name: "branch without expected-commit",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/a/b
+      branch: main
 `,
 	}} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -299,6 +335,36 @@ func TestPatchGoModule(t *testing.T) {
 
 	if _, err := patchGoModule(data, goModule{Path: "github.com/a/b", Version: "v1.0.0"}, "v1.1.0"); err == nil {
 		t.Error("patchGoModule() of unpinned module succeeded, want error")
+	}
+}
+
+func TestPatchConfigBranch(t *testing.T) {
+	data := readFile(t, "testdata/splitwise-for-ynab.yaml")
+	src, err := parseSource(data)
+	if err != nil {
+		t.Fatalf("parseSource() = %v", err)
+	}
+
+	const commit = "0123456789abcdef0123456789abcdef01234567"
+	got, err := patchConfig(data, src, "2026.12.01", commit)
+	if err != nil {
+		t.Fatalf("patchConfig() = %v", err)
+	}
+
+	want := strings.NewReplacer(
+		`    version: "2026.11.09"`, `    version: "2026.12.01"`,
+		"          expected-commit: "+src.ExpectedCommit, "          expected-commit: "+commit,
+	).Replace(string(data))
+	if string(got) != want {
+		t.Errorf("patchConfig() =\n%s\nwant:\n%s", got, want)
+	}
+
+	patched, err := parseSource(got)
+	if err != nil {
+		t.Fatalf("parseSource(patched) = %v", err)
+	}
+	if patched.Version != "2026.12.01" || patched.ExpectedCommit != commit {
+		t.Errorf("patched source = %+v", patched)
 	}
 }
 

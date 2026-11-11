@@ -1,0 +1,56 @@
+package:
+    name: splitwise-for-ynab
+    version: "2026.11.09"
+    epoch: 0
+    description: Broadcast shared YNAB transactions into Splitwise and back
+    copyright:
+        - license: LicenseRef-Unknown
+    dependencies:
+        runtime:
+            - ca-certificates-bundle
+            - nodejs-26
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+            - ca-certificates-bundle
+            - nodejs-26
+            - npm
+    environment:
+        NEXT_TELEMETRY_DISABLED: "1"
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/danthareja/splitwise_for_ynab
+          branch: main
+          expected-commit: d7b4a911fd9c1f2633255380bb97b5e95dbc6c12
+
+    - name: Enable standalone output
+      runs: |
+          sed -i 's/const nextConfig: NextConfig = {/const nextConfig: NextConfig = {\n  output: "standalone",/' next.config.ts
+
+    - name: Install dependencies
+      runs: |
+          npm ci
+
+    - name: Build
+      runs: |
+          DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npm run build
+
+    - name: Install
+      runs: |
+          mkdir -p "${{targets.destdir}}/usr/lib/splitwise-for-ynab"
+          cp -r .next/standalone/. "${{targets.destdir}}/usr/lib/splitwise-for-ynab/"
+          cp -r .next/static "${{targets.destdir}}/usr/lib/splitwise-for-ynab/.next/static"
+          cp -r public "${{targets.destdir}}/usr/lib/splitwise-for-ynab/public"
+          cp -r prisma "${{targets.destdir}}/usr/lib/splitwise-for-ynab/prisma"
+
+test:
+    pipeline:
+        - runs: test -f /usr/lib/splitwise-for-ynab/server.js
