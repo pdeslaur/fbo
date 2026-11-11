@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/octo-sts/app/refs/heads/main/pkg/octosts/octosts.TrustPolicy.json
-# Allows the shared update workflow, running on master, to open and auto-merge
+# Allows the shared update workflow, running on main, to open and auto-merge
 # version bump pull requests.
 issuer: https://token.actions.githubusercontent.com
-subject: repo:pdeslaur/oci-factorio:ref:refs/heads/master
+subject: repo:pdeslaur/oci-factorio:ref:refs/heads/main
 claim_pattern:
     job_workflow_ref: pdeslaur/oci-common/\.github/workflows/update\.yaml@refs/heads/main
 
