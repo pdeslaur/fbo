@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -51,13 +52,62 @@ func TestParseSource(t *testing.T) {
 			Branch:         "main",
 			ExpectedCommit: "d7b4a911fd9c1f2633255380bb97b5e95dbc6c12",
 		},
+	}, {
+		file: "testdata/factorio.yaml",
+		want: source{
+			Name:    "factorio",
+			Version: "2.1.24",
+			Vars: map[string]string{
+				"update-url":           "https://factorio.com/api/latest-releases",
+				"update-version":       ".stable.headless",
+				"update-release-notes": `"https://factorio.com/download/archive/" + $version`,
+			},
+			Update: &updateRules{
+				URL:          "https://factorio.com/api/latest-releases",
+				Version:      ".stable.headless",
+				Vars:         map[string]string{},
+				ReleaseNotes: `"https://factorio.com/download/archive/" + $version`,
+			},
+			Fetches: []fetch{{
+				URI:            "https://factorio.com/get-download/${{package.version}}/headless/linux64",
+				ExpectedSHA256: "c49b66cff90aceff87b30f2973af0df7f51712cb2ee3153e0169d9bed46a964f",
+			}, {
+				URI:            "https://factorio.com/get-download/${{package.version}}/headless/linux-arm64",
+				ExpectedSHA256: "141bd7aaa199fcf7e223dcaca8877aec1d6deaa9c4ac03b7a8c60ef37b6afb98",
+			}},
+		},
+	}, {
+		file: "testdata/minecraft-server.yaml",
+		want: source{
+			Name:    "minecraft-server",
+			Version: "26.3",
+			Vars: map[string]string{
+				"server-jar":            "https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar",
+				"update-url":            "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+				"update-version":        ".latest.release",
+				"update-var-server-jar": ".versions[] | select(.id == $version) | .url | fetch_json | .downloads.server.url",
+				"update-release-notes":  `"https://minecraft.wiki/w/Java_Edition_" + $version`,
+			},
+			Update: &updateRules{
+				URL:     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+				Version: ".latest.release",
+				Vars: map[string]string{
+					"server-jar": ".versions[] | select(.id == $version) | .url | fetch_json | .downloads.server.url",
+				},
+				ReleaseNotes: `"https://minecraft.wiki/w/Java_Edition_" + $version`,
+			},
+			Fetches: []fetch{{
+				URI:            "${{vars.server-jar}}",
+				ExpectedSHA256: "d052f14d7a173734fba553711e5b570162e2f2a313267ee31a21b975a679be64",
+			}},
+		},
 	}} {
 		t.Run(tt.file, func(t *testing.T) {
 			got, err := parseSource(readFile(t, tt.file))
 			if err != nil {
 				t.Fatalf("parseSource() = %v", err)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseSource() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -158,6 +208,78 @@ pipeline:
     with:
       repository: https://github.com/a/b
       branch: main
+`,
+	}, {
+		name: "update-url without update-version",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+vars:
+  update-url: https://example.com/releases.json
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://example.com/foo-${{package.version}}.tar.gz
+      expected-sha256: abc
+`,
+	}, {
+		name: "update-url with git-checkout",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+vars:
+  update-url: https://example.com/releases.json
+  update-version: .latest
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/a/b
+      tag: v${{package.version}}
+      expected-commit: abc
+`,
+	}, {
+		name: "update-var for unset var",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+vars:
+  update-url: https://example.com/releases.json
+  update-version: .latest
+  update-var-download: .url
+pipeline:
+  - uses: fetch
+    with:
+      uri: ${{vars.download}}
+      expected-sha256: abc
+`,
+	}, {
+		name: "fetch without expected-sha256",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+vars:
+  update-url: https://example.com/releases.json
+  update-version: .latest
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://example.com/foo-${{package.version}}.tar.gz
+`,
+	}, {
+		name: "fetch without update rules",
+		yaml: `
+package:
+  name: foo
+  version: "1.0"
+pipeline:
+  - uses: fetch
+    with:
+      uri: https://example.com/foo-${{package.version}}.tar.gz
+      expected-sha256: abc
 `,
 	}} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -364,6 +486,46 @@ func TestPatchConfigBranch(t *testing.T) {
 		t.Fatalf("parseSource(patched) = %v", err)
 	}
 	if patched.Version != "2026.12.01" || patched.ExpectedCommit != commit {
+		t.Errorf("patched source = %+v", patched)
+	}
+}
+
+func TestPatchFetchSource(t *testing.T) {
+	data := readFile(t, "testdata/minecraft-server.yaml")
+	src, err := parseSource(data)
+	if err != nil {
+		t.Fatalf("parseSource() = %v", err)
+	}
+	f := src.Fetches[0]
+
+	const (
+		jar = "https://piston-data.mojang.com/v1/objects/0123456789abcdef0123456789abcdef01234567/server.jar"
+		sum = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	)
+	got, err := patchVar(data, "server-jar", src.Vars["server-jar"], jar)
+	if err != nil {
+		t.Fatalf("patchVar() = %v", err)
+	}
+	if got, err = patchSHA256(got, f, sum); err != nil {
+		t.Fatalf("patchSHA256() = %v", err)
+	}
+	if got, err = patchVersion(got, src, "26.4"); err != nil {
+		t.Fatalf("patchVersion() = %v", err)
+	}
+	want := strings.NewReplacer(
+		`    version: "26.3"`, `    version: "26.4"`,
+		"    server-jar: "+src.Vars["server-jar"], "    server-jar: "+jar,
+		"expected-sha256: "+f.ExpectedSHA256, "expected-sha256: "+sum,
+	).Replace(string(data))
+	if string(got) != want {
+		t.Errorf("patched config =\n%s\nwant:\n%s", got, want)
+	}
+
+	patched, err := parseSource(got)
+	if err != nil {
+		t.Fatalf("parseSource(patched) = %v", err)
+	}
+	if patched.Version != "26.4" || patched.Vars["server-jar"] != jar || patched.Fetches[0].ExpectedSHA256 != sum {
 		t.Errorf("patched source = %+v", patched)
 	}
 }

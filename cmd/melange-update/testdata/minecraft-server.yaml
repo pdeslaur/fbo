@@ -1,0 +1,42 @@
+package:
+    name: minecraft-server
+    version: "26.3"
+    epoch: 0
+    description: Minecraft Java Edition server
+    copyright:
+        - license: PROPRIETARY
+    dependencies:
+        runtime:
+            - openjdk-25-default-jvm
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+
+vars:
+    server-jar: https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
+
+    # Read by pdeslaur/oci-common's melange-update to find new releases.
+    update-url: https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+    update-version: .latest.release
+    update-var-server-jar: '.versions[] | select(.id == $version) | .url | fetch_json | .downloads.server.url'
+    update-release-notes: '"https://minecraft.wiki/w/Java_Edition_" + $version'
+
+pipeline:
+    - uses: fetch
+      with:
+          uri: ${{vars.server-jar}}
+          expected-sha256: d052f14d7a173734fba553711e5b570162e2f2a313267ee31a21b975a679be64
+          extract: false
+
+    - runs: install -Dm644 server.jar "${{targets.destdir}}/usr/share/minecraft/server.jar"
+
+test:
+    pipeline:
+        # Fails if the server needs a newer Java than the runtime dependency.
+        - runs: cd "$(mktemp -d)" && java -jar /usr/share/minecraft/server.jar --help

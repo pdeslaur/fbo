@@ -11,27 +11,50 @@ import (
 
 const versionPlaceholder = "${{package.version}}"
 
-// source describes a melange package that is built from a single upstream
-// GitHub repository using the git-checkout pipeline.
+// source describes a melange package that is either built from a single
+// upstream GitHub repository using the git-checkout pipeline, or packages
+// upstream artifacts downloaded with the fetch pipeline and tracked with
+// update-* vars.
 type source struct {
 	Name    string
 	Version string
 	Epoch   int
 	// Owner and Repo identify the upstream GitHub repository.
+	// Empty for fetch-based sources.
 	Owner string
 	Repo  string
 	// TagTemplate is the git-checkout tag, e.g. "v${{package.version}}".
-	// Empty for branch-based sources.
+	// Empty for branch-based and fetch-based sources.
 	TagTemplate string
 	// Branch is the tracked branch for repos without releases.
-	// Empty for tag-based sources.
+	// Empty for tag-based and fetch-based sources.
 	Branch         string
 	ExpectedCommit string
+	// Vars are the config's vars, which fetch URIs may reference.
+	Vars map[string]string
+	// Update describes how to find the latest release of a fetch-based
+	// source. Nil for git-checkout sources.
+	Update *updateRules
+	// Fetches are the fetch steps, in the order they appear.
+	// Empty for git-checkout sources.
+	Fetches []fetch
+}
+
+// fetch is a fetch pipeline step that downloads an upstream artifact.
+type fetch struct {
+	// URI may reference ${{package.version}} and ${{vars.NAME}}.
+	URI            string
+	ExpectedSHA256 string
 }
 
 // Tag returns the upstream git tag for the given version.
 func (s source) Tag(version string) string {
-	return strings.ReplaceAll(s.TagTemplate, versionPlaceholder, version)
+	return expandVersion(s.TagTemplate, version)
+}
+
+// expandVersion substitutes version for ${{package.version}} in s.
+func expandVersion(s, version string) string {
+	return strings.ReplaceAll(s, versionPlaceholder, version)
 }
 
 // VersionFromTag extracts the version from an upstream git tag, or reports
@@ -51,6 +74,7 @@ type melangeConfig struct {
 		Version string `yaml:"version"`
 		Epoch   int    `yaml:"epoch"`
 	} `yaml:"package"`
+	Vars     map[string]string `yaml:"vars"`
 	Pipeline []struct {
 		Uses string `yaml:"uses"`
 		With struct {
@@ -58,6 +82,8 @@ type melangeConfig struct {
 			Tag            string `yaml:"tag"`
 			Branch         string `yaml:"branch"`
 			ExpectedCommit string `yaml:"expected-commit"`
+			URI            string `yaml:"uri"`
+			ExpectedSHA256 string `yaml:"expected-sha256"`
 		} `yaml:"with"`
 	} `yaml:"pipeline"`
 }
@@ -69,13 +95,16 @@ func parseSource(data []byte) (source, error) {
 		return source{}, fmt.Errorf("parsing melange config: %w", err)
 	}
 
-	s := source{Name: cfg.Package.Name, Version: cfg.Package.Version, Epoch: cfg.Package.Epoch}
+	s := source{Name: cfg.Package.Name, Version: cfg.Package.Version, Epoch: cfg.Package.Epoch, Vars: cfg.Vars}
 	if s.Name == "" || s.Version == "" {
 		return source{}, fmt.Errorf("package.name and package.version are required")
 	}
 
 	found := 0
 	for _, step := range cfg.Pipeline {
+		if step.Uses == "fetch" {
+			s.Fetches = append(s.Fetches, fetch{URI: step.With.URI, ExpectedSHA256: step.With.ExpectedSHA256})
+		}
 		if step.Uses != "git-checkout" {
 			continue
 		}
@@ -89,6 +118,15 @@ func parseSource(data []byte) (source, error) {
 		s.Branch = step.With.Branch
 		s.ExpectedCommit = step.With.ExpectedCommit
 	}
+	if _, ok := s.Vars[updateURLVar]; ok {
+		if found != 0 {
+			return source{}, fmt.Errorf("%s can't be combined with a git-checkout step", updateURLVar)
+		}
+		return parseFetchSource(s)
+	}
+	// Without update-* vars, fetch steps download auxiliary artifacts that
+	// aren't tracked.
+	s.Fetches = nil
 	if found != 1 {
 		return source{}, fmt.Errorf("expected exactly one git-checkout step, found %d", found)
 	}
@@ -125,13 +163,40 @@ func parseGitHubRepository(u string) (owner, repo string, err error) {
 // config. Like the other patch functions, it edits the text in place rather
 // than re-marshalling so that formatting and comments are preserved.
 func patchConfig(data []byte, s source, version, commit string) ([]byte, error) {
-	out, err := replaceOnce(data, `version:\s*"?`+regexp.QuoteMeta(s.Version)+`"?`, `version: "`+version+`"`)
+	out, err := patchVersion(data, s, version)
 	if err != nil {
-		return nil, fmt.Errorf("patching version: %w", err)
+		return nil, err
 	}
 	out, err = replaceOnce(out, `expected-commit:\s*`+regexp.QuoteMeta(s.ExpectedCommit), "expected-commit: "+commit)
 	if err != nil {
 		return nil, fmt.Errorf("patching expected-commit: %w", err)
+	}
+	return out, nil
+}
+
+// patchVersion rewrites the package version in a melange config.
+func patchVersion(data []byte, s source, version string) ([]byte, error) {
+	out, err := replaceOnce(data, `version:\s*"?`+regexp.QuoteMeta(s.Version)+`"?`, `version: "`+version+`"`)
+	if err != nil {
+		return nil, fmt.Errorf("patching version: %w", err)
+	}
+	return out, nil
+}
+
+// patchSHA256 rewrites the expected SHA-256 of a fetch step.
+func patchSHA256(data []byte, f fetch, sha256 string) ([]byte, error) {
+	out, err := replaceOnce(data, `expected-sha256:\s*`+regexp.QuoteMeta(f.ExpectedSHA256), "expected-sha256: "+sha256)
+	if err != nil {
+		return nil, fmt.Errorf("patching expected-sha256: %w", err)
+	}
+	return out, nil
+}
+
+// patchVar rewrites the value of a var in a melange config.
+func patchVar(data []byte, name, old, value string) ([]byte, error) {
+	out, err := replaceOnce(data, regexp.QuoteMeta(name)+`:\s*"?`+regexp.QuoteMeta(old)+`"?`, name+": "+value)
+	if err != nil {
+		return nil, fmt.Errorf("patching var %s: %w", name, err)
 	}
 	return out, nil
 }

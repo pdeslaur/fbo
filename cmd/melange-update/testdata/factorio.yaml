@@ -1,0 +1,53 @@
+package:
+    name: factorio
+    version: "2.1.24"
+    epoch: 0
+    description: Factorio headless server
+    copyright:
+        - license: PROPRIETARY
+    dependencies:
+        runtime:
+            # The start script runs under /bin/sh.
+            - busybox
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+            - gnutar
+            - xz
+
+vars:
+    # Read by pdeslaur/oci-common's melange-update to find new releases.
+    update-url: https://factorio.com/api/latest-releases
+    update-version: .stable.headless
+    update-release-notes: '"https://factorio.com/download/archive/" + $version'
+
+pipeline:
+    - runs: mkdir -p "${{targets.destdir}}/factorio"
+
+    - uses: fetch
+      if: ${{build.arch}} == 'x86_64'
+      with:
+          uri: https://factorio.com/get-download/${{package.version}}/headless/linux64
+          expected-sha256: c49b66cff90aceff87b30f2973af0df7f51712cb2ee3153e0169d9bed46a964f
+          directory: ${{targets.destdir}}/factorio
+          delete: true
+
+    - uses: fetch
+      if: ${{build.arch}} == 'aarch64'
+      with:
+          uri: https://factorio.com/get-download/${{package.version}}/headless/linux-arm64
+          expected-sha256: 141bd7aaa199fcf7e223dcaca8877aec1d6deaa9c4ac03b7a8c60ef37b6afb98
+          directory: ${{targets.destdir}}/factorio
+          delete: true
+
+    - runs: install -Dm755 start "${{targets.destdir}}/usr/bin/factorio-start"
+
+test:
+    pipeline:
+        - runs: /factorio/bin/*/factorio --version

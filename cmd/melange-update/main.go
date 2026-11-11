@@ -3,7 +3,11 @@
 //
 // The upstream repository and tag format are read from the config's
 // git-checkout step. When a newer GitHub release exists, the package version
-// and expected-commit are updated. Go modules pinned in pipeline steps with
+// and expected-commit are updated. Packages that download upstream artifacts
+// with fetch steps instead describe how to find the latest release with
+// update-* vars, which are jq queries over a JSON document; a newer release
+// updates the vars they resolve and each fetch step's expected-sha256. Go
+// modules pinned in pipeline steps with
 // "go get MODULE@VERSION" are bumped to the latest release within their major
 // version, as reported by the Go module proxy.
 //
@@ -18,9 +22,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/chainguard-dev/clog"
@@ -56,9 +62,13 @@ func main() {
 	gh := githubClient{token: cfg.GitHubToken}
 	var pkgUpdate *update
 	var pkgVersionChanged bool
-	if src.Branch != "" {
+	switch {
+	case src.Update != nil:
+		data, pkgUpdate, err = updatePackageFetch(ctx, data, src)
+		pkgVersionChanged = pkgUpdate != nil
+	case src.Branch != "":
 		data, pkgUpdate, pkgVersionChanged, err = updatePackageBranch(ctx, gh, data, src)
-	} else {
+	default:
 		data, pkgUpdate, err = updatePackage(ctx, gh, data, src)
 		pkgVersionChanged = pkgUpdate != nil
 	}
@@ -167,6 +177,65 @@ func updatePackageBranch(ctx context.Context, gh githubClient, data []byte, src 
 		To:   commit[:8],
 		URL:  fmt.Sprintf("https://github.com/%s/%s/commit/%s", src.Owner, src.Repo, commit),
 	}, versionChanged, nil
+}
+
+// updatePackageFetch bumps a package of upstream artifacts to the latest
+// release found by its update rules, updating the vars they resolve and each
+// fetch step's expected SHA-256. It returns a nil update if the package is
+// already up to date.
+func updatePackageFetch(ctx context.Context, data []byte, src source) ([]byte, *update, error) {
+	ctx = clog.WithValues(ctx, "upstream", src.Update.URL)
+
+	rel, err := latestRelease(ctx, src.Update)
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetching latest release: %w", err)
+	}
+
+	cmp, err := compareVersions(src.Version, rel.Version)
+	if err != nil {
+		return nil, nil, fmt.Errorf("comparing versions: %w", err)
+	}
+	clog.InfoContext(ctx, "package version check", "current", src.Version, "latest", rel.Version)
+	if cmp >= 0 {
+		return data, nil, nil
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(rel.Vars)) {
+		if data, err = patchVar(data, name, src.Vars[name], rel.Vars[name]); err != nil {
+			return nil, nil, err
+		}
+	}
+	vars := maps.Clone(src.Vars)
+	maps.Copy(vars, rel.Vars)
+	for _, f := range src.Fetches {
+		u, err := expand(f.URI, rel.Version, vars)
+		if err != nil {
+			return nil, nil, err
+		}
+		sum, err := sha256OfURL(ctx, u)
+		if err != nil {
+			return nil, nil, fmt.Errorf("computing checksum: %w", err)
+		}
+		clog.InfoContext(ctx, "fetched artifact", "uri", u, "sha256", sum)
+		if data, err = patchSHA256(data, f, sum); err != nil {
+			return nil, nil, err
+		}
+	}
+	if data, err = patchVersion(data, src, rel.Version); err != nil {
+		return nil, nil, err
+	}
+
+	// Without release notes, link to the document the release was found in.
+	notes := rel.ReleaseNotes
+	if notes == "" {
+		notes = src.Update.URL
+	}
+	return data, &update{
+		Name: src.Name,
+		From: src.Version,
+		To:   rel.Version,
+		URL:  notes,
+	}, nil
 }
 
 // updateGoModules bumps each Go module pinned with "go get" to its latest
