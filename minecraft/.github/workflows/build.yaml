@@ -21,6 +21,6 @@ permissions:
 
 jobs:
     build:
-        uses: pdeslaur/oci-common/.github/workflows/build.yaml@main
+        uses: pdeslaur/oci-common/.github/workflows/build.yaml@melange-container
         with:
             publish: ${{ github.event_name != 'pull_request' }}
