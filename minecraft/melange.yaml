@@ -18,10 +18,19 @@ environment:
         packages:
             - busybox
 
+vars:
+    server-jar: https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
+
+    # Read by pdeslaur/oci-common's melange-update to find new releases.
+    update-url: https://piston-meta.mojang.com/mc/game/version_manifest_v2.json
+    update-version: .latest.release
+    update-var-server-jar: '.versions[] | select(.id == $version) | .url | fetch_json | .downloads.server.url'
+    update-release-notes: '"https://minecraft.wiki/w/Java_Edition_" + $version'
+
 pipeline:
     - uses: fetch
       with:
-          uri: https://piston-data.mojang.com/v1/objects/33680f5f2ac32864d6d7cf5e56a705fdb3e05f4c/server.jar
+          uri: ${{vars.server-jar}}
           expected-sha256: d052f14d7a173734fba553711e5b570162e2f2a313267ee31a21b975a679be64
           extract: false
 
