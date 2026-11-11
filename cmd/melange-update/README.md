@@ -8,6 +8,8 @@ repositories:
 - [oci-dns01proxy](https://github.com/pdeslaur/oci-dns01proxy)
 - [oci-factorio](https://github.com/pdeslaur/oci-factorio)
 - [oci-minecraft](https://github.com/pdeslaur/oci-minecraft)
+- [oci-spliit](https://github.com/pdeslaur/oci-spliit), which publishes several
+  images with its own build workflow and only uses `update.yaml`
 
 ## Workflows
 
