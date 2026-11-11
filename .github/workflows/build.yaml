@@ -47,8 +47,10 @@ jobs:
                   persist-credentials: false
 
             # Scheduled runs skip the cache so that toolchain fixes from
-            # Wolfi (e.g. Go or Rust patch releases) are picked up. The public
-            # key is cached alongside the packages it verifies.
+            # Wolfi (e.g. Go or Rust patch releases) are picked up. The key
+            # covers every file in the repository, since melange copies them
+            # all into the build workspace (e.g. scripts the package installs).
+            # The public key is cached alongside the packages it verifies.
             - name: Restore cached packages
               id: cache
               if: github.event_name != 'schedule'
@@ -57,7 +59,7 @@ jobs:
                   path: |
                       ./packages
                       ./melange-${{ matrix.arch }}.rsa.pub
-                  key: packages-${{ matrix.arch }}-${{ hashFiles('melange.yaml') }}
+                  key: packages-${{ matrix.arch }}-${{ hashFiles('**', '!.git/**') }}
 
             # Each arch is signed with its own key, named after the arch so
             # that apko can tell the keys apart when publishing.

@@ -8,4 +8,9 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require golang.org/x/mod v0.42.0
+require (
+	github.com/itchyny/gojq v0.12.20
+	golang.org/x/mod v0.42.0
+)
+
+require github.com/itchyny/timefmt-go v0.1.9 // indirect
