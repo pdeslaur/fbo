@@ -20,6 +20,12 @@ jobs:
         runs-on: ${{ matrix.runner }}
         permissions:
             contents: read
+        # Runs melange from its container image rather than installing it on
+        # the runner, which needs apt. --privileged lets melange create the
+        # bubblewrap sandboxes it builds and tests in.
+        container:
+            image: cgr.dev/chainguard/melange:latest-dev@sha256:3ca26400a3e4acc35738abee5c38629395fdb28d534384622729fccfdb346eb2
+            options: --privileged
         strategy:
             fail-fast: false
             matrix:
@@ -30,42 +36,51 @@ jobs:
                     - arch: x86_64
                       runner: ubuntu-24.04
         steps:
+            # JavaScript actions run with the runner's Node binary mounted into
+            # the container, which needs libstdc++. This must come before any
+            # of them.
+            - name: Install Node dependencies
+              run: apk add --no-cache libstdc++
+
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   persist-credentials: false
 
             # Scheduled runs skip the cache so that toolchain fixes from
-            # Wolfi (e.g. Go or Rust patch releases) are picked up.
+            # Wolfi (e.g. Go or Rust patch releases) are picked up. The public
+            # key is cached alongside the packages it verifies.
             - name: Restore cached packages
               id: cache
               if: github.event_name != 'schedule'
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
-                  path: ./packages
-                  key: melange-${{ matrix.arch }}-${{ hashFiles('melange.yaml') }}
+                  path: |
+                      ./packages
+                      ./melange-${{ matrix.arch }}.rsa.pub
+                  key: packages-${{ matrix.arch }}-${{ hashFiles('melange.yaml') }}
 
-            - uses: chainguard-dev/actions/setup-melange@794a2c44abbbd7b3a186db97b359270e4105448f # v1.8.0
-              if: steps.cache.outputs.cache-hit != 'true'
-
+            # Each arch is signed with its own key, named after the arch so
+            # that apko can tell the keys apart when publishing.
+            #
             # --build-date stamps the package with the time of the last commit,
             # as Wolfi does. Without it melange leaves the build date unset, so
             # apko dates the image by its newest Wolfi dependency instead. A
             # fixed date also keeps rebuilds of an unchanged config
-            # reproducible. melange runs under sudo, which drops
-            # SOURCE_DATE_EPOCH from the environment, hence the flag.
+            # reproducible. The checkout is owned by the runner user rather
+            # than the container's root, so git needs it marked safe.
             - name: Build package
               if: steps.cache.outputs.cache-hit != 'true'
               env:
                   ARCH: ${{ matrix.arch }}
               run: |
-                  melange keygen melange.rsa
-                  sudo melange build melange.yaml \
+                  git config --global --add safe.directory "$GITHUB_WORKSPACE"
+                  melange keygen "melange-$ARCH.rsa"
+                  melange build melange.yaml \
                     --arch "$ARCH" \
                     --build-date "$(git log -1 --format=%cI)" \
-                    --signing-key melange.rsa \
+                    --signing-key "melange-$ARCH.rsa" \
                     --source-dir . \
                     --out-dir ./packages
-                  sudo chown -R runner:runner ./packages
 
             - name: Test package
               if: steps.cache.outputs.cache-hit != 'true'
@@ -76,7 +91,7 @@ jobs:
                     --arch "$ARCH" \
                     --runner bubblewrap \
                     --repository-append ./packages \
-                    --keyring-append ./melange.rsa.pub \
+                    --keyring-append "./melange-$ARCH.rsa.pub" \
                     --repository-append https://packages.wolfi.dev/os \
                     --keyring-append https://packages.wolfi.dev/os/wolfi-signing.rsa.pub \
                     --test-package-append busybox
@@ -85,7 +100,9 @@ jobs:
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: packages-${{ matrix.arch }}
-                  path: ./packages
+                  path: |
+                      ./packages
+                      ./melange-${{ matrix.arch }}.rsa.pub
                   retention-days: 1
                   if-no-files-found: error
 
@@ -102,23 +119,11 @@ jobs:
               with:
                   persist-credentials: false
 
-            - uses: chainguard-dev/actions/setup-melange@794a2c44abbbd7b3a186db97b359270e4105448f # v1.8.0
-
             - name: Download packages
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
                   pattern: packages-*
-                  path: ./packages
                   merge-multiple: true
-
-            - name: Re-index packages under a single key
-              run: |
-                  melange keygen melange.rsa
-                  for arch in x86_64 aarch64; do
-                    melange sign -k melange.rsa packages/$arch/*.apk
-                    melange index -o packages/$arch/APKINDEX.tar.gz packages/$arch/*.apk
-                    melange sign-index --signing-key melange.rsa packages/$arch/APKINDEX.tar.gz
-                  done
 
             - name: Compute image tags
               id: tags
@@ -141,7 +146,7 @@ jobs:
               with:
                   config: apko.yaml
                   tag: ${{ steps.tags.outputs.tags }}
-                  keyring-append: ./melange.rsa.pub
+                  keyring-append: ./melange-x86_64.rsa.pub,./melange-aarch64.rsa.pub
                   repository-append: ./packages
 
             - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
