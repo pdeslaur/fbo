@@ -32,15 +32,16 @@ jobs:
                 arch: [x86_64, aarch64]
                 include:
                     - arch: aarch64
-                      runner: ubuntu-24.04-arm
+                      runner: ubuntu-26.04-arm
                     - arch: x86_64
-                      runner: ubuntu-24.04
+                      runner: ubuntu-26.04
         steps:
             # JavaScript actions run with the runner's Node binary mounted into
-            # the container, which needs libstdc++. This must come before any
-            # of them.
-            - name: Install Node dependencies
-              run: apk add --no-cache libstdc++
+            # the container, which needs libstdc++, and actions/cache needs
+            # GNU tar rather than the image's BusyBox tar. This must come
+            # before any of them.
+            - name: Install action dependencies
+              run: apk add --no-cache libstdc++ gnutar
 
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -110,7 +111,7 @@ jobs:
 
     publish:
         if: inputs.publish
-        runs-on: ubuntu-latest
+        runs-on: ubuntu-26.04
         needs: build
         permissions:
             contents: read
