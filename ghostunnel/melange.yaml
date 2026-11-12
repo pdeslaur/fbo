@@ -1,0 +1,43 @@
+package:
+    name: ghostunnel
+    version: "1.11.5"
+    epoch: 0
+    description: TLS proxy with mutual authentication, including SPIFFE
+    copyright:
+        - license: Apache-2.0
+    dependencies:
+        runtime:
+            - ca-certificates-bundle
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+            - ca-certificates-bundle
+            - go-1.27
+    # Without cgo, ghostunnel leaves out PKCS#11 and the macOS and Windows
+    # keychains, as upstream's container images do.
+    environment:
+        CGO_ENABLED: "0"
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/ghostunnel/ghostunnel
+          tag: v${{package.version}}
+          expected-commit: ab198e2d4b63e20c95e974f92d6d3386554a2eba
+
+    - uses: go/build
+      with:
+          packages: .
+          output: ghostunnel
+          go-package: go-1.27
+          ldflags: -X main.version=v${{package.version}}
+
+test:
+    pipeline:
+        - runs: /usr/bin/ghostunnel --version
