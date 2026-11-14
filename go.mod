@@ -10,7 +10,7 @@ require (
 
 require (
 	github.com/itchyny/gojq v0.12.20
-	golang.org/x/mod v0.42.0
+	golang.org/x/mod v0.43.0
 )
 
 require github.com/itchyny/timefmt-go v0.1.9 // indirect
