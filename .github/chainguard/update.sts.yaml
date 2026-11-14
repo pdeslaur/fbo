@@ -2,7 +2,8 @@
 # Allows the update workflow, running on main, to open and auto-merge version
 # bump pull requests.
 issuer: https://token.actions.githubusercontent.com
-subject: repo:pdeslaur/fbo:ref:refs/heads/main
+# GitHub names the owner and repository with their IDs in the subject.
+subject: repo:pdeslaur@1692704/fbo@1457452368:ref:refs/heads/main
 claim_pattern:
     job_workflow_ref: pdeslaur/fbo/\.github/workflows/update\.yaml@refs/heads/main
 
