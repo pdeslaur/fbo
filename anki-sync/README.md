@@ -1,4 +1,4 @@
-# oci-anki-sync
+# anki-sync
 
 The [Anki](https://apps.ankiweb.net) sync server, for syncing Anki and AnkiDroid
 through your own server instead of AnkiWeb. It's built from the
@@ -6,18 +6,9 @@ through your own server instead of AnkiWeb. It's built from the
 
 ## Image
 
-`ghcr.io/pdeslaur/oci-anki-sync`, for `linux/amd64` and `linux/arm64`, tagged
-`latest` and with the Anki version. It's built from [`melange.yaml`](melange.yaml)
-and [`apko.yaml`](apko.yaml) on [Wolfi](https://wolfi.dev) by
-[oci-common](https://github.com/pdeslaur/oci-common)'s shared workflow, and
-rebuilt daily to pick up Wolfi fixes. Verify its signature with:
-
-```sh
-cosign verify ghcr.io/pdeslaur/oci-anki-sync:latest \
-    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-    --certificate-identity https://github.com/pdeslaur/oci-common/.github/workflows/build.yaml@refs/heads/main \
-    --certificate-github-workflow-repository pdeslaur/oci-anki-sync
-```
+`ghcr.io/pdeslaur/anki-sync`, for `linux/amd64` and `linux/arm64`, tagged
+`latest` and with the Anki version. See [Images](../README.md#images) for how
+it's built and how to verify its signature.
 
 ## Usage
 
@@ -31,7 +22,7 @@ podman run -d \
     -e SYNC_PORT=8080 \
     -v anki:/data \
     -p 8080:8080 \
-    ghcr.io/pdeslaur/oci-anki-sync:latest
+    ghcr.io/pdeslaur/anki-sync:latest
 ```
 
 Then point Anki's sync server setting at `http://<host>:8080/`. See Anki's
@@ -40,6 +31,6 @@ other options.
 
 ## Updates
 
-A daily [update workflow](.github/workflows/update.yaml) bumps Anki to its latest
-release and opens a pull request that merges once the build passes. See
-[oci-common](https://github.com/pdeslaur/oci-common#melange-update) for how.
+A daily [update workflow](../.github/workflows/update.yaml) bumps Anki to its
+latest release and opens a pull request that merges once the build passes. See
+[melange-update](../cmd/melange-update) for how.
