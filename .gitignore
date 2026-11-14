@@ -1,1 +1,17 @@
+# melange build outputs
+packages/
+melange-extra-repos.yaml
+
+# apko build outputs
+*.tar.gz
+*.sbom.json
+
+# signing keys
+*.rsa
+*.rsa.pub
+
+# local dev
+.env
+
+# macOS
 .DS_Store

@@ -1,4 +1,4 @@
-# oci-spliit
+# spliit
 
 OCI images for [Spliit Cloud](https://github.com/antonio-ivanovski/spliit-cloud) — an open-source, self-hosted expense splitter with accounts, sync, and more. Built from source using melange + apko on Wolfi.
 
@@ -6,21 +6,15 @@ OCI images for [Spliit Cloud](https://github.com/antonio-ivanovski/spliit-cloud)
 
 | Image | Description |
 |---|---|
-| `ghcr.io/pdeslaur/oci-spliit` | Caddy proxy + web SPA |
-| `ghcr.io/pdeslaur/oci-spliit-api` | Hono/tRPC API server (port 3001) |
-| `ghcr.io/pdeslaur/oci-spliit-worker` | Background job worker |
-| `ghcr.io/pdeslaur/oci-spliit-migrate` | One-shot Prisma migration runner |
+| `ghcr.io/pdeslaur/spliit` | Caddy proxy + web SPA |
+| `ghcr.io/pdeslaur/spliit-api` | Hono/tRPC API server (port 3001) |
+| `ghcr.io/pdeslaur/spliit-worker` | Background job worker |
+| `ghcr.io/pdeslaur/spliit-migrate` | One-shot Prisma migration runner |
 
 Each is published for `linux/amd64` and `linux/arm64`, tagged `latest` and with
-the Spliit Cloud version. They're built from [`melange.yaml`](melange.yaml) and
-the `apko*.yaml` files by this repo's [build workflow](.github/workflows/build.yaml),
-and rebuilt daily to pick up Wolfi fixes. Verify an image's signature with:
-
-```sh
-cosign verify ghcr.io/pdeslaur/oci-spliit:latest \
-    --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-    --certificate-identity https://github.com/pdeslaur/oci-spliit/.github/workflows/build.yaml@refs/heads/main
-```
+the Spliit Cloud version, from [`melange.yaml`](melange.yaml) and the
+`apko*.yaml` file of the same suffix. See [Images](../README.md#images) for how
+they're built and how to verify their signatures.
 
 ## Usage
 
@@ -29,7 +23,7 @@ The images follow the same service layout as the [upstream compose.yaml](https:/
 ```yaml
 services:
   migrate:
-    image: ghcr.io/pdeslaur/oci-spliit-migrate:latest
+    image: ghcr.io/pdeslaur/spliit-migrate:latest
     restart: "no"
     environment:
       DATABASE_URL: postgresql://spliit:pass@db:5432/spliit
@@ -38,7 +32,7 @@ services:
         condition: service_healthy
 
   api:
-    image: ghcr.io/pdeslaur/oci-spliit-api:latest
+    image: ghcr.io/pdeslaur/spliit-api:latest
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://spliit:pass@db:5432/spliit
@@ -52,7 +46,7 @@ services:
         condition: service_completed_successfully
 
   worker:
-    image: ghcr.io/pdeslaur/oci-spliit-worker:latest
+    image: ghcr.io/pdeslaur/spliit-worker:latest
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://spliit:pass@db:5432/spliit
@@ -62,7 +56,7 @@ services:
         condition: service_completed_successfully
 
   web:
-    image: ghcr.io/pdeslaur/oci-spliit:latest
+    image: ghcr.io/pdeslaur/spliit:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:80"
@@ -118,4 +112,4 @@ The web SPA bakes `VITE_DEFAULT_CURRENCY_CODE=USD` at build time. All `PUBLIC_EN
 
 ## Updates
 
-A daily [update workflow](.github/workflows/update.yaml) bumps Spliit Cloud to its latest release and opens a pull request that merges once the build passes. See [oci-common](https://github.com/pdeslaur/oci-common#melange-update) for how.
+A daily [update workflow](../.github/workflows/update.yaml) bumps Spliit Cloud to its latest release and opens a pull request that merges once the build passes. See [melange-update](../cmd/melange-update) for how.

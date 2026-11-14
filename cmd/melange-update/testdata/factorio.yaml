@@ -22,7 +22,7 @@ environment:
             - xz
 
 vars:
-    # Read by pdeslaur/oci-common's melange-update to find new releases.
+    # Read by melange-update to find new releases.
     update-url: https://factorio.com/api/latest-releases
     update-version: .stable.headless
     update-release-notes: '"https://factorio.com/download/archive/" + $version'

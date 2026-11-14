@@ -1,6 +1,6 @@
-module github.com/pdeslaur/oci-common
+module github.com/pdeslaur/fbo
 
-go 1.26.2
+go 1.26.11
 
 require (
 	github.com/chainguard-dev/clog v1.8.1
