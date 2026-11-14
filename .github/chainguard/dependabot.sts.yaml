@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/octo-sts/app/refs/heads/main/pkg/octosts/octosts.TrustPolicy.json
+# Allows the Dependabot workflow, as it is on main, to enable auto-merge on
+# Dependabot's pull requests.
+issuer: https://token.actions.githubusercontent.com
+subject_pattern: repo:pdeslaur/fbo:.+
+claim_pattern:
+    actor: dependabot\[bot\]
+    event_name: pull_request_target
+    job_workflow_ref: pdeslaur/fbo/\.github/workflows/dependabot\.yaml@refs/heads/main
+
+permissions:
+    contents: write
+    pull_requests: write

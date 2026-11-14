@@ -53,4 +53,6 @@ token, as allowed by [`.github/chainguard/update.sts.yaml`](.github/chainguard/u
 so that they trigger the build.
 
 [Dependabot](.github/dependabot.yml) checks for GitHub Actions and Go module
-updates weekly.
+updates weekly. Its pull requests get auto-merge from the
+[Dependabot workflow](.github/workflows/dependabot.yaml), through octo-sts like
+the update workflow's, so they merge once the checks pass.
