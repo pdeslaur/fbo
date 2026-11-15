@@ -30,8 +30,8 @@ permissions:
     contents: read
 
 env:
-    # The KMS key packages and indexes are signed with: home-infra's
-    # apk/apk-signing in philde-net, whose public half is apk.philde.net.rsa.pub.
+    # The KMS key packages and indexes are signed with, whose public half is
+    # apk.philde.net.rsa.pub.
     KMS_KEY_VERSION: projects/philde-net/locations/us-west1/keyRings/apk/cryptoKeys/apk-signing/cryptoKeyVersions/1
     # cloudflare-sts, and its profile for the apk repository's bucket, served
     # at REPOSITORY.

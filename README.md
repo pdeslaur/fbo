@@ -58,8 +58,7 @@ The workflow holds no long-lived credential. It reaches the private key, which
 never leaves KMS, through workload identity federation with its GitHub OIDC
 token, and gets temporary credentials for the bucket from
 [cloudflare-sts](https://github.com/pdeslaur/cloudflare-sts) with the same token. Only
-this workflow, on `main`, may do either. home-infra manages the key, the bucket
-and the broker.
+this workflow, on `main`, may do either.
 
 ## Updates
 
