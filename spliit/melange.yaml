@@ -73,7 +73,7 @@ environment:
         packages:
             - busybox
             - ca-certificates-bundle
-            - bun
+            - bun=1.4.4-r1
     environment:
         # Baked into the web SPA at build time; the API reads
         # PUBLIC_DEFAULT_CURRENCY_CODE at runtime independently.

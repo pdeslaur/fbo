@@ -9,11 +9,14 @@
 // updates the vars they resolve and each fetch step's expected-sha256. Go
 // modules pinned in pipeline steps with
 // "go get MODULE@VERSION" are bumped to the latest release within their major
-// version, as reported by the Go module proxy.
+// version, as reported by the Go module proxy. Build dependencies pinned to an
+// exact version in the build environment, such as "go-1.26=1.26.11-r0", are
+// bumped to the latest version its repositories have for every architecture.
 //
 // When the package version changes the epoch is reset to 0; when only Go
-// modules change it is incremented. Results are written as GitHub Actions step
-// outputs: package, updated, and when updated, title and body.
+// modules or pinned build dependencies change it is incremented. Results are
+// written as GitHub Actions step outputs: package, updated, and when updated,
+// title and body.
 package main
 
 import (
@@ -84,6 +87,12 @@ func main() {
 		clog.FatalContextf(ctx, "updating Go modules: %v", err)
 	}
 	updates = append(updates, modUpdates...)
+
+	data, pinUpdates, err := updatePins(ctx, data)
+	if err != nil {
+		clog.FatalContextf(ctx, "updating pinned build dependencies: %v", err)
+	}
+	updates = append(updates, pinUpdates...)
 
 	if len(updates) == 0 {
 		clog.InfoContext(ctx, "already up to date")
@@ -268,6 +277,65 @@ func updateGoModules(ctx context.Context, data []byte) ([]byte, []update, error)
 			From: m.Version,
 			To:   latest,
 			URL:  "https://pkg.go.dev/" + m.Path + "@" + latest,
+		})
+	}
+	return data, updates, nil
+}
+
+// updatePins bumps each build dependency pinned in the build environment to
+// the latest version available in its repositories for every architecture,
+// so that the package is rebuilt with toolchain fixes.
+func updatePins(ctx context.Context, data []byte) ([]byte, []update, error) {
+	env, err := parseBuildEnvironment(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(env.Pins) == 0 {
+		return data, nil, nil
+	}
+
+	var indexes []apkIndex
+	for _, arch := range arches {
+		merged := apkIndex{}
+		for _, repo := range env.Repositories {
+			idx, err := fetchAPKIndex(ctx, repo, arch)
+			if err != nil {
+				return nil, nil, err
+			}
+			for name, pkgs := range idx {
+				merged[name] = append(merged[name], pkgs...)
+			}
+		}
+		indexes = append(indexes, merged)
+	}
+
+	var updates []update
+	for _, p := range env.Pins {
+		ctx := clog.WithValues(ctx, "dependency", p.Name)
+		latest, ok, err := latestAPK(indexes, p.Name)
+		if err != nil {
+			return nil, nil, fmt.Errorf("finding latest %s: %w", p.Name, err)
+		}
+		if !ok {
+			return nil, nil, fmt.Errorf("no version of %s is available for %v", p.Name, arches)
+		}
+		clog.InfoContext(ctx, "build dependency version check", "current", p.Version, "latest", latest.Version)
+		cmp, err := compareAPKVersions(latest.Version, p.Version)
+		if err != nil {
+			return nil, nil, err
+		}
+		if cmp <= 0 {
+			continue
+		}
+
+		if data, err = patchPin(data, p, latest.Version); err != nil {
+			return nil, nil, err
+		}
+		updates = append(updates, update{
+			Name: p.Name,
+			From: p.Version,
+			To:   latest.Version,
+			URL:  "https://github.com/wolfi-dev/os/blob/main/" + latest.Origin + ".yaml",
 		})
 	}
 	return data, updates, nil
