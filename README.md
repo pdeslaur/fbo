@@ -34,9 +34,12 @@ cosign verify ghcr.io/pdeslaur/<image>:latest \
     --certificate-identity https://github.com/pdeslaur/fbo/.github/workflows/build.yaml@refs/heads/main
 ```
 
-Pull requests and pushes build only the directories they change, or every
-directory when they change the build workflow. It rebuilds every image daily,
-without its package cache, to pick up Wolfi package and toolchain fixes. melange
+Pull requests build and test the packages of the directories they change, or of
+every directory when they change the build workflow. On `main`, a package is
+built only when the repository doesn't have its version-epoch, and a pull
+request that changes a package without bumping its epoch fails. Every image is
+rebuilt daily, to pick up Wolfi's fixes to the packages it installs. Toolchain
+fixes come as pull requests bumping the pinned build dependencies. melange
 runs in the `cgr.dev/chainguard/melange:latest-dev` container, pinned by digest,
 so builds don't depend on the runner's apt mirrors.
 

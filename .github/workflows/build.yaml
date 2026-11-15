@@ -10,7 +10,9 @@ name: Build
 #
 # Pull requests and pushes build only the images whose directory changed, or
 # every image when this workflow changed. Scheduled and manual runs build every
-# image.
+# image, picking up Wolfi's fixes to what they install. A package is built on
+# main only when the repository doesn't have its version-epoch, which never
+# changes once it does.
 
 on:
     pull_request:
@@ -52,7 +54,14 @@ jobs:
                   persist-credentials: false
 
             # Every directory with a melange.yaml is an image directory.
-            - name: List changed images
+            #
+            # A version-epoch in the repository is immutable, so on main a
+            # package is built only when the repository doesn't have it. Pull
+            # requests build what they change, to test it, and fail if they
+            # change a package's inputs (anything in its directory but READMEs
+            # and image configs) without a version-epoch the repository
+            # doesn't have: the change would never ship.
+            - name: List changed images and packages to build
               id: changes
               env:
                   EVENT: ${{ github.event_name }}
@@ -74,6 +83,38 @@ jobs:
                   fi
                   echo "Images: ${dirs:-none}"
 
+                  # The packages each arch's index lists, as <name>-<version>.apk.
+                  # A repository without an index yet has none.
+                  indexes=$(mktemp -d)
+                  for arch in x86_64 aarch64; do
+                      if curl -fsS -o "$indexes/APKINDEX.tar.gz" "$REPOSITORY/$arch/APKINDEX.tar.gz"; then
+                          tar -xzOf "$indexes/APKINDEX.tar.gz" APKINDEX |
+                              awk -F: '/^P:/ { name = $2 } /^V:/ { print name "-" $2 ".apk" }' >"$indexes/$arch"
+                      else
+                          : >"$indexes/$arch"
+                      fi
+                  done
+
+                  build=
+                  stale=
+                  for dir in $dirs; do
+                      file=$(yq '.package | .name + "-" + .version + "-r" + (.epoch | tostring) + ".apk"' "$dir/melange.yaml")
+                      published=true
+                      for arch in x86_64 aarch64; do
+                          grep -qxF "$file" "$indexes/$arch" || published=false
+                      done
+                      if [ "$EVENT" = pull_request ]; then
+                          build="$build $dir"
+                          if $published && [ -n "$(git diff --name-only "$base" HEAD -- "$dir" ':!*.md' ':!*/apko*.yaml')" ]; then
+                              echo "::error file=$dir/melange.yaml::The repository already has $file: bump package.epoch to change it."
+                              stale=1
+                          fi
+                      elif ! $published; then
+                          build="$build $dir"
+                      fi
+                  done
+                  echo "Packages to build:${build:- none}"
+
                   images=$(for dir in $dirs; do
                       for config in "$dir"/apko*.yaml; do
                           suffix=$(basename "$config" .yaml)
@@ -82,8 +123,9 @@ jobs:
                       done
                   done | jq -cs .)
 
-                  echo "dirs=$(echo "$dirs" | jq -cnR '[inputs | select(. != "")]')" >> "$GITHUB_OUTPUT"
+                  echo "dirs=$(echo "$build" | tr ' ' '\n' | jq -cnR '[inputs | select(. != "")]')" >> "$GITHUB_OUTPUT"
                   echo "images=$images" >> "$GITHUB_OUTPUT"
+                  [ -z "$stale" ]
 
     package:
         needs: changes
@@ -119,14 +161,14 @@ jobs:
                   fetch-depth: 0
                   persist-credentials: false
 
-            # Scheduled runs skip the cache so that toolchain fixes from
-            # Wolfi (e.g. Go or Rust patch releases) are picked up. The key
+            # Pull requests cache their packages between pushes. Main builds
+            # only what the repository doesn't have, from scratch. The key
             # covers every file in the directory, since melange copies them
             # all into the build workspace (e.g. scripts the package installs).
             # The public key is cached alongside the packages it verifies.
             - name: Restore cached packages
               id: cache
-              if: github.event_name != 'schedule'
+              if: github.event_name == 'pull_request'
               uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
               with:
                   path: |
@@ -287,7 +329,7 @@ jobs:
             !cancelled()
             && github.event_name != 'pull_request'
             && needs.changes.result == 'success'
-            && needs.index.result == 'success'
+            && contains(fromJSON('["success", "skipped"]'), needs.index.result)
             && needs.changes.outputs.images != '[]'
         runs-on: ubuntu-26.04
         permissions:
