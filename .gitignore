@@ -9,6 +9,8 @@ melange-extra-repos.yaml
 # signing keys
 *.rsa
 *.rsa.pub
+# The public half of the KMS key packages are signed with.
+!/apk.philde.net.rsa.pub
 
 # local dev
 .env
