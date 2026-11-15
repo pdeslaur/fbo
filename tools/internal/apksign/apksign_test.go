@@ -1,4 +1,4 @@
-package main
+package apksign
 
 import (
 	"archive/tar"
@@ -79,7 +79,7 @@ func tarStream(t *testing.T, modTime time.Time, last bool, files ...file) []byte
 var buildDate = time.Date(2026, 11, 14, 17, 50, 0, 0, time.UTC)
 
 // throwawaySignature is a signature section, as melange writes it, by a key
-// that resign replaces.
+// that Resign replaces.
 func throwawaySignature(t *testing.T, signed []byte) []byte {
 	t.Helper()
 	key, _ := newKey(t)
@@ -171,8 +171,8 @@ func TestResignPackage(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			path := writeFile(t, "foo-1.0-r0.apk", tc.parts...)
-			if err := resign(context.Background(), path, keySigner{key}, "test.rsa.pub", publicKey); err != nil {
-				t.Fatalf("resign() = %v", err)
+			if err := ResignFile(context.Background(), path, keySigner{key}, "test.rsa.pub", publicKey); err != nil {
+				t.Fatalf("ResignFile() = %v", err)
 			}
 			checkSigned(t, path, "test.rsa.pub", publicKey, control, data)
 		})
@@ -187,8 +187,8 @@ func TestResignIsReproducible(t *testing.T) {
 	var signed [][]byte
 	for range 2 {
 		path := writeFile(t, "foo-1.0-r0.apk", throwawaySignature(t, control), control, data)
-		if err := resign(context.Background(), path, keySigner{key}, "test.rsa.pub", publicKey); err != nil {
-			t.Fatalf("resign() = %v", err)
+		if err := ResignFile(context.Background(), path, keySigner{key}, "test.rsa.pub", publicKey); err != nil {
+			t.Fatalf("ResignFile() = %v", err)
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
@@ -209,15 +209,15 @@ func TestResignWrongKey(t *testing.T) {
 	original := bytes.Join([][]byte{throwawaySignature(t, control), control, data}, nil)
 	path := writeFile(t, "foo-1.0-r0.apk", original)
 
-	if err := resign(context.Background(), path, keySigner{key}, "test.rsa.pub", otherPublicKey); err == nil {
-		t.Fatal("resign() with a signer that doesn't match the public key succeeded, want error")
+	if err := ResignFile(context.Background(), path, keySigner{key}, "test.rsa.pub", otherPublicKey); err == nil {
+		t.Fatal("ResignFile() with a signer that doesn't match the public key succeeded, want error")
 	}
 	got, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(got, original) {
-		t.Error("resign() changed the file although the signature didn't verify")
+		t.Error("ResignFile() changed the file although the signature didn't verify")
 	}
 }
 
@@ -238,8 +238,8 @@ func TestResignIndex(t *testing.T) {
 	if err := os.WriteFile(path, bytes.Join([][]byte{throwawaySignature(t, index), index}, nil), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := resign(context.Background(), path, keySigner{key}, "test.rsa.pub", publicKey); err != nil {
-		t.Fatalf("resign() = %v", err)
+	if err := ResignFile(context.Background(), path, keySigner{key}, "test.rsa.pub", publicKey); err != nil {
+		t.Fatalf("ResignFile() = %v", err)
 	}
 	checkSigned(t, path, "test.rsa.pub", publicKey, index, nil)
 
@@ -289,5 +289,27 @@ func TestParsePublicKey(t *testing.T) {
 	}
 	if _, err := parsePublicKey([]byte("not PEM")); err == nil {
 		t.Error("parsePublicKey() of non-PEM succeeded, want error")
+	}
+}
+
+func TestVerify(t *testing.T) {
+	key, publicKey := newKey(t)
+	_, otherPublicKey := newKey(t)
+	control := tarStream(t, buildDate, false, file{".PKGINFO", "pkgname = foo\n"})
+	data := tarStream(t, buildDate, true, file{"usr/bin/foo", "foo"})
+	unsigned := bytes.Join([][]byte{control, data}, nil)
+
+	signed, err := Resign(context.Background(), unsigned, keySigner{key}, "test.rsa.pub", publicKey)
+	if err != nil {
+		t.Fatalf("Resign() = %v", err)
+	}
+	if err := Verify(signed, publicKey); err != nil {
+		t.Errorf("Verify() = %v", err)
+	}
+	if err := Verify(signed, otherPublicKey); err == nil {
+		t.Error("Verify() with another key succeeded, want error")
+	}
+	if err := Verify(unsigned, publicKey); err == nil {
+		t.Error("Verify() of an unsigned package succeeded, want error")
 	}
 }

@@ -2,10 +2,11 @@ name: Build
 
 # Builds the melange package of each image directory for each arch, runs its
 # tests, signs the packages with the KMS key whose public half is
-# apk.philde.net.rsa.pub, and publishes each of its apko*.yaml images to
-# ghcr.io/<owner>/<directory><suffix>, tagged with "latest" and the package
-# version, signed keylessly with cosign. apko.yaml has no suffix, and
-# apko-<suffix>.yaml has "-<suffix>".
+# apk.philde.net.rsa.pub, adds them to the apk repository at
+# https://apk.philde.net/os, and publishes each of its apko*.yaml images, built
+# from that repository, to ghcr.io/<owner>/<directory><suffix>, tagged with
+# "latest" and the package version, signed keylessly with cosign. apko.yaml has
+# no suffix, and apko-<suffix>.yaml has "-<suffix>".
 #
 # Pull requests and pushes build only the images whose directory changed, or
 # every image when this workflow changed. Scheduled and manual runs build every
@@ -27,6 +28,16 @@ concurrency:
 
 permissions:
     contents: read
+
+env:
+    # The KMS key packages and indexes are signed with: home-infra's
+    # apk/apk-signing in philde-net, whose public half is apk.philde.net.rsa.pub.
+    KMS_KEY_VERSION: projects/philde-net/locations/us-west1/keyRings/apk/cryptoKeys/apk-signing/cryptoKeyVersions/1
+    # cloudflare-sts, and its profile for the apk repository's bucket, served
+    # at REPOSITORY.
+    BROKER_URL: https://cloudflare-sts.philde.net
+    BROKER_SCOPE: pdeslaur/fbo:apk
+    REPOSITORY: https://apk.philde.net/os
 
 jobs:
     changes:
@@ -173,11 +184,12 @@ jobs:
                   retention-days: 1
                   if-no-files-found: error
 
-    # Replaces the throwaway signatures of a directory's packages and indexes,
-    # for both arches, with ones by the apk/apk-signing KMS key in philde-net.
-    # Only this workflow on main may sign with it, through the GitHub
-    # workload identity pool, so pull requests keep the throwaway signatures
-    # and publish nothing. Runs even when some packages failed, like publish.
+    # Replaces the throwaway signatures of a directory's packages, for both
+    # arches, with ones by the apk/apk-signing KMS key in philde-net, and adds
+    # them to the apk repository. Only this workflow on main may sign with the
+    # key, through the GitHub workload identity pool, or write the repository,
+    # through cloudflare-sts, so pull requests keep the throwaway signatures and
+    # publish nothing. Runs even when some packages failed, like publish.
     sign:
         needs: [changes, package]
         if: >-
@@ -217,31 +229,65 @@ jobs:
               with:
                   workload_identity_provider: projects/455982902327/locations/global/workloadIdentityPools/github/providers/actions
 
+            - name: Build tools
+              run: go build -C tools -o "$RUNNER_TEMP/" ./cmd/apk-sign ./cmd/apk-repo
+
             - name: Sign packages
               env:
-                  KMS_KEY_VERSION: projects/philde-net/locations/us-west1/keyRings/apk/cryptoKeys/apk-signing/cryptoKeyVersions/1
                   PUBLIC_KEY: apk.philde.net.rsa.pub
-              run: |
-                  go build -C tools -o "$RUNNER_TEMP/apk-sign" ./cmd/apk-sign
-                  "$RUNNER_TEMP/apk-sign" packages/*/*.apk packages/*/APKINDEX.tar.gz
+              run: '"$RUNNER_TEMP/apk-sign" packages/*/*.apk'
 
-            - name: Upload signed packages
-              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-              with:
-                  name: signed-packages-${{ matrix.dir }}
-                  path: ./packages
-                  retention-days: 1
-                  if-no-files-found: error
+            # A version-epoch the repository already has is kept, not
+            # replaced.
+            - name: Add packages to the repository
+              run: '"$RUNNER_TEMP/apk-repo" upload packages/*/*.apk'
 
-    # Runs even when some packages failed, so that one broken image doesn't
-    # hold back the others: an image whose packages are missing fails to
-    # download them.
-    publish:
+    # Lists the packages the sign jobs added in each arch's APKINDEX, and signs
+    # it. Runs once, after every sign job, so the index has one writer; runs
+    # on main never overlap.
+    index:
         needs: [changes, sign]
         if: >-
             !cancelled()
             && github.event_name != 'pull_request'
             && needs.changes.result == 'success'
+            && needs.changes.outputs.dirs != '[]'
+        runs-on: ubuntu-26.04
+        permissions:
+            contents: read
+            id-token: write # for the KMS key and the repository's bucket
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: tools/go.mod
+                  cache-dependency-path: tools/go.sum
+
+            - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+              with:
+                  workload_identity_provider: projects/455982902327/locations/global/workloadIdentityPools/github/providers/actions
+
+            - name: Build tools
+              run: go build -C tools -o "$RUNNER_TEMP/" ./cmd/apk-repo
+
+            - name: Index the repository
+              env:
+                  PUBLIC_KEY: apk.philde.net.rsa.pub
+              run: '"$RUNNER_TEMP/apk-repo" index'
+
+    # Runs even when some packages failed, so that one broken image doesn't
+    # hold back the others: an image whose version-epoch isn't in the
+    # repository fails.
+    publish:
+        needs: [changes, index]
+        if: >-
+            !cancelled()
+            && github.event_name != 'pull_request'
+            && needs.changes.result == 'success'
+            && needs.index.result == 'success'
             && needs.changes.outputs.images != '[]'
         runs-on: ubuntu-26.04
         permissions:
@@ -257,19 +303,25 @@ jobs:
               with:
                   persist-credentials: false
 
-            - name: Download signed packages
-              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-              with:
-                  name: signed-packages-${{ matrix.image.dir }}
-                  path: ./packages
-
-            - name: Compute image tags
+            # apk installs the latest version the repository has, which is the
+            # previous version-epoch's if this one's build failed: the image
+            # would be tagged with a version it doesn't have.
+            - name: Check the packages and compute image tags
               id: tags
               env:
                   DIR: ${{ matrix.image.dir }}
                   IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.image.name }}
               run: |
+                  name=$(yq '.package.name' "$DIR/melange.yaml")
                   version=$(yq '.package.version' "$DIR/melange.yaml")
+                  epoch=$(yq '.package.epoch' "$DIR/melange.yaml")
+                  for arch in x86_64 aarch64; do
+                      url="$REPOSITORY/$arch/$name-$version-r$epoch.apk"
+                      if ! curl -fsSI -o /dev/null "$url"; then
+                          echo "::error::The repository doesn't have $url: its build or signing failed."
+                          exit 1
+                      fi
+                  done
                   echo "tags=$IMAGE:latest $IMAGE:$version" >> "$GITHUB_OUTPUT"
 
             - name: Login to GHCR
@@ -286,7 +338,7 @@ jobs:
                   config: ${{ matrix.image.config }}
                   tag: ${{ steps.tags.outputs.tags }}
                   keyring-append: ./apk.philde.net.rsa.pub
-                  repository-append: ./packages
+                  repository-append: ${{ env.REPOSITORY }}
 
             - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
@@ -296,10 +348,10 @@ jobs:
                   IMAGE: ${{ steps.publish.outputs.digest }}
               run: cosign sign --yes --recursive "$IMAGE"
 
-    # The check to require: the package, sign and publish jobs depend on which
-    # images changed, and may not run at all.
+    # The check to require: the package, sign, index and publish jobs depend on
+    # which images changed, and may not run at all.
     build:
-        needs: [changes, package, sign, publish]
+        needs: [changes, package, sign, index, publish]
         if: always()
         runs-on: ubuntu-26.04
         steps:

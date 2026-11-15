@@ -40,16 +40,26 @@ without its package cache, to pick up Wolfi package and toolchain fixes. melange
 runs in the `cgr.dev/chainguard/melange:latest-dev` container, pinned by digest,
 so builds don't depend on the runner's apt mirrors.
 
-## Package signing
+## Package repository
 
 melange signs packages with a throwaway key, which their tests use. On `main`,
-[apk-sign](tools/cmd/apk-sign) then replaces the signatures of the packages and their
-`APKINDEX.tar.gz` with ones by the `apk/apk-signing` Cloud KMS key in the
-`philde-net` project, whose public half is
-[apk.philde.net.rsa.pub](apk.philde.net.rsa.pub), and the images are built
-trusting that key alone. The private key never leaves KMS: the build workflow
-reaches it through workload identity federation with its GitHub OIDC token,
-and only this workflow, on `main`, may sign with it. home-infra manages the key.
+[apk-sign](tools/cmd/apk-sign) then replaces their signatures with ones by the
+`apk/apk-signing` Cloud KMS key in the `philde-net` project, whose public half
+is [apk.philde.net.rsa.pub](apk.philde.net.rsa.pub), and
+[apk-repo](tools/cmd/apk-repo) adds them to the apk repository at
+`https://apk.philde.net/os`, an R2 bucket, and lists them in each arch's
+signed `APKINDEX.tar.gz`. The images are built from that repository, trusting
+the KMS key alone.
+
+A package's version-epoch is immutable: the repository keeps the first one it
+gets, and never replaces it.
+
+The workflow holds no long-lived credential. It reaches the private key, which
+never leaves KMS, through workload identity federation with its GitHub OIDC
+token, and gets temporary credentials for the bucket from
+[cloudflare-sts](https://github.com/pdeslaur/cloudflare-sts) with the same token. Only
+this workflow, on `main`, may do either. home-infra manages the key, the bucket
+and the broker.
 
 ## Updates
 
