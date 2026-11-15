@@ -77,6 +77,7 @@ type melangeConfig struct {
 	Environment struct {
 		Contents struct {
 			Repositories []string `yaml:"repositories"`
+			Keyring      []string `yaml:"keyring"`
 			Packages     []string `yaml:"packages"`
 		} `yaml:"contents"`
 	} `yaml:"environment"`
@@ -299,18 +300,22 @@ type pin struct {
 // pinned build dependencies are resolved against.
 type buildEnvironment struct {
 	Repositories []string
+	Keyring      []string
 	Pins         []pin
 }
 
-// parseBuildEnvironment returns the repositories of a melange config's build
-// environment and the packages in it pinned with "=". Unpinned packages and
-// other constraints, such as ">=", are left alone.
+// parseBuildEnvironment returns the repositories and keyring of a melange
+// config's build environment, and the packages in it pinned with "=".
+// Unpinned packages and other constraints, such as ">=", are left alone.
 func parseBuildEnvironment(data []byte) (buildEnvironment, error) {
 	var cfg melangeConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return buildEnvironment{}, fmt.Errorf("parsing melange config: %w", err)
 	}
-	env := buildEnvironment{Repositories: cfg.Environment.Contents.Repositories}
+	env := buildEnvironment{
+		Repositories: cfg.Environment.Contents.Repositories,
+		Keyring:      cfg.Environment.Contents.Keyring,
+	}
 	for _, p := range cfg.Environment.Contents.Packages {
 		if strings.ContainsAny(p, "<>~") {
 			continue

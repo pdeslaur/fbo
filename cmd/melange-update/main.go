@@ -294,37 +294,24 @@ func updatePins(ctx context.Context, data []byte) ([]byte, []update, error) {
 		return data, nil, nil
 	}
 
-	var indexes []apkIndex
-	for _, arch := range arches {
-		merged := apkIndex{}
-		for _, repo := range env.Repositories {
-			idx, err := fetchAPKIndex(ctx, repo, arch)
-			if err != nil {
-				return nil, nil, err
-			}
-			for name, pkgs := range idx {
-				merged[name] = append(merged[name], pkgs...)
-			}
-		}
-		indexes = append(indexes, merged)
+	rs, err := resolvers(ctx, env)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var updates []update
 	for _, p := range env.Pins {
 		ctx := clog.WithValues(ctx, "dependency", p.Name)
-		latest, ok, err := latestAPK(indexes, p.Name)
-		if err != nil {
-			return nil, nil, fmt.Errorf("finding latest %s: %w", p.Name, err)
-		}
-		if !ok {
-			return nil, nil, fmt.Errorf("no version of %s is available for %v", p.Name, arches)
-		}
-		clog.InfoContext(ctx, "build dependency version check", "current", p.Version, "latest", latest.Version)
-		cmp, err := compareAPKVersions(latest.Version, p.Version)
+		latest, err := latestAPK(rs, p.Name)
 		if err != nil {
 			return nil, nil, err
 		}
-		if cmp <= 0 {
+		clog.InfoContext(ctx, "build dependency version check", "current", p.Version, "latest", latest.Version)
+		newer, err := isNewer(latest.Version, p.Version)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !newer {
 			continue
 		}
 

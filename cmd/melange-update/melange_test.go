@@ -608,6 +608,8 @@ environment:
     contents:
         repositories:
             - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
         packages:
             - busybox
             - go-1.26=1.26.11-r0
@@ -623,6 +625,7 @@ func TestParseBuildEnvironment(t *testing.T) {
 	}
 	want := buildEnvironment{
 		Repositories: []string{"https://packages.wolfi.dev/os"},
+		Keyring:      []string{"https://packages.wolfi.dev/os/wolfi-signing.rsa.pub"},
 		Pins: []pin{
 			{Name: "go-1.26", Version: "1.26.11-r0"},
 			{Name: "rust", Version: "1.100.0-r0"},
