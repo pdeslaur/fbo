@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/octo-sts/app/refs/heads/main/pkg/octosts/octosts.TrustPolicy.json
+# Allows the digests workflow, running on main, to open and auto-merge pull
+# requests updating the image digests pinned in the workflows, which takes
+# workflows: write. No other workflow gets that.
+issuer: https://token.actions.githubusercontent.com
+# GitHub names the owner and repository with their IDs in the subject.
+subject: repo:pdeslaur@1692704/fbo@1457452368:ref:refs/heads/main
+claim_pattern:
+    job_workflow_ref: pdeslaur/fbo/\.github/workflows/digests\.yaml@refs/heads/main
+
+permissions:
+    contents: write
+    pull_requests: write
+    workflows: write
