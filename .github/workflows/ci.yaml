@@ -16,6 +16,9 @@ permissions:
 jobs:
     lint:
         runs-on: ubuntu-26.04
+        defaults:
+            run:
+                working-directory: tools
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -23,7 +26,8 @@ jobs:
 
             - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
-                  go-version-file: go.mod
+                  go-version-file: tools/go.mod
+                  cache-dependency-path: tools/go.sum
 
             - name: gofmt
               run: |
@@ -44,6 +48,9 @@ jobs:
 
     test:
         runs-on: ubuntu-26.04
+        defaults:
+            run:
+                working-directory: tools
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -51,6 +58,7 @@ jobs:
 
             - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
-                  go-version-file: go.mod
+                  go-version-file: tools/go.mod
+                  cache-dependency-path: tools/go.sum
 
             - run: go test -race ./...

@@ -31,7 +31,7 @@ Pass JVM options, such as the heap size, with `JAVA_TOOL_OPTIONS`.
 
 A daily [update workflow](../.github/workflows/update.yaml) bumps Minecraft to
 the latest release and opens a pull request that merges once the build passes.
-See [melange-update](../cmd/melange-update) for how.
+See [melange-update](../tools/cmd/melange-update) for how.
 
 The Java version is pinned in `melange.yaml`. If a release needs a newer one,
 the package test fails and the pull request waits for that to be bumped by hand.

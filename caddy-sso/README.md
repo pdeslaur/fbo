@@ -39,4 +39,4 @@ podman run --rm --entrypoint caddy ghcr.io/pdeslaur/caddy-sso:latest list-module
 
 A daily [update workflow](../.github/workflows/update.yaml) bumps Caddy and the
 two modules to their latest releases and opens a pull request that merges once
-the build passes. See [melange-update](../cmd/melange-update) for how.
+the build passes. See [melange-update](../tools/cmd/melange-update) for how.

@@ -16,7 +16,8 @@ published to `ghcr.io/pdeslaur/<image>`.
 
 Each directory holds a `melange.yaml`, building one package and its
 subpackages, and the `apko*.yaml` files of the images installing them, each
-documented in the directory's README.
+documented in the directory's README. `tools/` is the Go module of the commands
+the workflows run, under `tools/cmd/`.
 
 ## Images
 
@@ -42,7 +43,7 @@ so builds don't depend on the runner's apt mirrors.
 ## Updates
 
 The [update workflow](.github/workflows/update.yaml) runs
-[melange-update](cmd/melange-update) daily on each directory's `melange.yaml`,
+[melange-update](tools/cmd/melange-update) daily on each directory's `melange.yaml`,
 bumping the package and the Go modules it pins to their latest releases. Each
 package with an update gets a pull request on `update/<package>`, with
 auto-merge enabled, so it merges once the build passes. While that pull request

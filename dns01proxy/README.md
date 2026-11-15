@@ -48,4 +48,4 @@ dns01proxy keeps its own certificate under `$XDG_DATA_HOME`.
 
 A daily [update workflow](../.github/workflows/update.yaml) bumps dns01proxy to
 its latest release and opens a pull request that merges once the build passes.
-See [melange-update](../cmd/melange-update) for how.
+See [melange-update](../tools/cmd/melange-update) for how.
