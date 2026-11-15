@@ -1,5 +1,8 @@
 package:
-    name: caddy
+    # Not "caddy", which Wolfi also has: apk installs the highest version
+    # across repositories, so a newer Wolfi caddy, without these plugins,
+    # would replace this one in the image.
+    name: caddy-sso
     version: "2.11.9"
     epoch: 1
     description: Caddy web server with ACME proxy DNS provider
