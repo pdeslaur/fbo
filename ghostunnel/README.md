@@ -46,4 +46,4 @@ podman run -d \
 
 A daily [update workflow](../.github/workflows/update.yaml) bumps ghostunnel to
 its latest release and opens a pull request that merges once the build passes.
-See [melange-update](../cmd/melange-update) for how.
+See [melange-update](../tools/cmd/melange-update) for how.

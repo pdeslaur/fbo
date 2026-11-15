@@ -41,4 +41,4 @@ podman run -d -i \
 
 A daily [update workflow](../.github/workflows/update.yaml) bumps Factorio to
 the latest stable release and opens a pull request that merges once the build
-passes. See [melange-update](../cmd/melange-update) for how.
+passes. See [melange-update](../tools/cmd/melange-update) for how.

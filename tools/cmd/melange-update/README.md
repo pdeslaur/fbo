@@ -68,9 +68,9 @@ and it may name a package's provides, such as `rust`, which several
 when only Go modules or pinned build dependencies change. A package's version
 and epoch therefore identify everything it is built from.
 
-The [update workflow](../../.github/workflows/update.yaml) runs it on each
-image's `melange.yaml` daily. To run it by hand, from the repository's root:
+The [update workflow](../../../.github/workflows/update.yaml) runs it on each
+image's `melange.yaml` daily. To run it by hand, from `tools/`:
 
 ```sh
-GH_TOKEN=$(gh auth token) MELANGE_CONFIG=caddy-sso/melange.yaml go run ./cmd/melange-update
+GH_TOKEN=$(gh auth token) MELANGE_CONFIG=../caddy-sso/melange.yaml go run ./cmd/melange-update
 ```

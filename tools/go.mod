@@ -1,4 +1,4 @@
-module github.com/pdeslaur/fbo
+module github.com/pdeslaur/fbo/tools
 
 go 1.27.4
 

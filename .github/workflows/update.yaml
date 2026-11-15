@@ -50,13 +50,15 @@ jobs:
 
             - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
               with:
-                  go-version-file: go.mod
+                  go-version-file: tools/go.mod
+                  cache-dependency-path: tools/go.sum
 
             - name: Check for update and patch melange.yaml
               id: update
               env:
                   GH_TOKEN: ${{ github.token }}
-                  MELANGE_CONFIG: ${{ matrix.dir }}/melange.yaml
+                  MELANGE_CONFIG: ${{ github.workspace }}/${{ matrix.dir }}/melange.yaml
+              working-directory: tools
               run: go run ./cmd/melange-update
 
             - uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
