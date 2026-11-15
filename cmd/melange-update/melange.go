@@ -74,6 +74,13 @@ type melangeConfig struct {
 		Version string `yaml:"version"`
 		Epoch   int    `yaml:"epoch"`
 	} `yaml:"package"`
+	Environment struct {
+		Contents struct {
+			Repositories []string `yaml:"repositories"`
+			Keyring      []string `yaml:"keyring"`
+			Packages     []string `yaml:"packages"`
+		} `yaml:"contents"`
+	} `yaml:"environment"`
 	Vars     map[string]string `yaml:"vars"`
 	Pipeline []struct {
 		Uses string `yaml:"uses"`
@@ -280,4 +287,51 @@ func versionComponent(parts []string, i int) (int, error) {
 		return 0, fmt.Errorf("component %q is not a non-negative integer", parts[i])
 	}
 	return n, nil
+}
+
+// pin is a build dependency pinned to an exact version in the build
+// environment, e.g. "go-1.26=1.26.11-r0".
+type pin struct {
+	Name    string
+	Version string
+}
+
+// buildEnvironment is the part of a melange config's build environment that
+// pinned build dependencies are resolved against.
+type buildEnvironment struct {
+	Repositories []string
+	Keyring      []string
+	Pins         []pin
+}
+
+// parseBuildEnvironment returns the repositories and keyring of a melange
+// config's build environment, and the packages in it pinned with "=".
+// Unpinned packages and other constraints, such as ">=", are left alone.
+func parseBuildEnvironment(data []byte) (buildEnvironment, error) {
+	var cfg melangeConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return buildEnvironment{}, fmt.Errorf("parsing melange config: %w", err)
+	}
+	env := buildEnvironment{
+		Repositories: cfg.Environment.Contents.Repositories,
+		Keyring:      cfg.Environment.Contents.Keyring,
+	}
+	for _, p := range cfg.Environment.Contents.Packages {
+		if strings.ContainsAny(p, "<>~") {
+			continue
+		}
+		if name, version, ok := strings.Cut(p, "="); ok {
+			env.Pins = append(env.Pins, pin{Name: name, Version: version})
+		}
+	}
+	return env, nil
+}
+
+// patchPin rewrites the version of a pinned build dependency.
+func patchPin(data []byte, p pin, version string) ([]byte, error) {
+	out, err := replaceOnce(data, `- `+regexp.QuoteMeta(p.Name+"="+p.Version), "- "+p.Name+"="+version)
+	if err != nil {
+		return nil, fmt.Errorf("patching %s: %w", p.Name, err)
+	}
+	return out, nil
 }

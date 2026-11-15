@@ -598,3 +598,55 @@ func readFile(t *testing.T, path string) []byte {
 	}
 	return data
 }
+
+const pinnedConfig = `package:
+    name: foo
+    version: "1.0"
+    epoch: 0
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+            - go-1.26=1.26.11-r0
+            - rust=1.100.0-r0
+            - build-base>=1
+            - protoc~36
+`
+
+func TestParseBuildEnvironment(t *testing.T) {
+	got, err := parseBuildEnvironment([]byte(pinnedConfig))
+	if err != nil {
+		t.Fatalf("parseBuildEnvironment() = %v", err)
+	}
+	want := buildEnvironment{
+		Repositories: []string{"https://packages.wolfi.dev/os"},
+		Keyring:      []string{"https://packages.wolfi.dev/os/wolfi-signing.rsa.pub"},
+		Pins: []pin{
+			{Name: "go-1.26", Version: "1.26.11-r0"},
+			{Name: "rust", Version: "1.100.0-r0"},
+		},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseBuildEnvironment() = %+v, want %+v", got, want)
+	}
+}
+
+func TestPatchPin(t *testing.T) {
+	got, err := patchPin([]byte(pinnedConfig), pin{Name: "go-1.26", Version: "1.26.11-r0"}, "1.26.12-r0")
+	if err != nil {
+		t.Fatalf("patchPin() = %v", err)
+	}
+	want := strings.Replace(pinnedConfig, "- go-1.26=1.26.11-r0\n", "- go-1.26=1.26.12-r0\n", 1)
+	if string(got) != want {
+		t.Errorf("patchPin() =\n%s\nwant:\n%s", got, want)
+	}
+
+	if _, err := patchPin([]byte(pinnedConfig), pin{Name: "go-1.26", Version: "1.26.10-r0"}, "1.26.12-r0"); err == nil {
+		t.Error("patchPin() of a stale pin succeeded, want error")
+	}
+}

@@ -18,9 +18,9 @@ environment:
         packages:
             - busybox
             - ca-certificates-bundle
-            - rust
-            - protoc
-            - build-base
+            - rust=1.100.0-r0
+            - protoc=36.2-r1
+            - build-base=1-r10
 
 pipeline:
     - uses: git-checkout

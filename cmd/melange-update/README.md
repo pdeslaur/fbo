@@ -47,8 +47,26 @@ It also bumps Go modules pinned in pipeline steps with `go get MODULE@VERSION`,
 such as Caddy plugins, to the latest release reported by the Go module proxy.
 This stays within the module's major version and skips prereleases.
 
+Build dependencies pinned to an exact version in the build environment are
+bumped to the latest version in its repositories, so that a package is rebuilt
+when its toolchain changes:
+
+```yaml
+environment:
+    contents:
+        packages:
+            - busybox
+            - go-1.26=1.26.11-r0
+```
+
+Only `=` pins are bumped; unpinned packages and other constraints are left
+alone. A pin moves only to a version that every architecture's APKINDEX has,
+and it may name a package's provides, such as `rust`, which several
+`rust-1.X` packages provide.
+
 `package.epoch` is reset to 0 when the package version changes, and incremented
-when only Go modules change.
+when only Go modules or pinned build dependencies change. A package's version
+and epoch therefore identify everything it is built from.
 
 The [update workflow](../../.github/workflows/update.yaml) runs it on each
 image's `melange.yaml` daily. To run it by hand, from the repository's root:
