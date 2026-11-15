@@ -135,7 +135,7 @@ jobs:
         # the runner, which needs apt. --privileged lets melange create the
         # bubblewrap sandboxes it builds and tests in.
         container:
-            image: cgr.dev/chainguard/melange:latest-dev@sha256:3ca26400a3e4acc35738abee5c38629395fdb28d534384622729fccfdb346eb2
+            image: cgr.dev/chainguard/melange:latest-dev@sha256:9e3b55c639d9367d453918c7089a712b614d41c7b5dc3624f8a4640f5440218a
             options: --privileged
         strategy:
             fail-fast: false
