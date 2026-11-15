@@ -5,6 +5,7 @@ melange-extra-repos.yaml
 # apko build outputs
 *.tar.gz
 *.sbom.json
+sbom-*.spdx.json
 
 # signing keys
 *.rsa
