@@ -1,7 +1,8 @@
 name: Build
 
 # Builds the melange package of each image directory for each arch, runs its
-# tests, and publishes each of its apko*.yaml images to
+# tests, signs the packages with the KMS key whose public half is
+# apk.philde.net.rsa.pub, and publishes each of its apko*.yaml images to
 # ghcr.io/<owner>/<directory><suffix>, tagged with "latest" and the package
 # version, signed keylessly with cosign. apko.yaml has no suffix, and
 # apko-<suffix>.yaml has "-<suffix>".
@@ -172,11 +173,71 @@ jobs:
                   retention-days: 1
                   if-no-files-found: error
 
+    # Replaces the throwaway signatures of a directory's packages and indexes,
+    # for both arches, with ones by the apk/apk-signing KMS key in philde-net.
+    # Only this workflow on main may sign with it, through the GitHub
+    # workload identity pool, so pull requests keep the throwaway signatures
+    # and publish nothing. Runs even when some packages failed, like publish.
+    sign:
+        needs: [changes, package]
+        if: >-
+            !cancelled()
+            && github.event_name != 'pull_request'
+            && needs.changes.result == 'success'
+            && needs.changes.outputs.dirs != '[]'
+        runs-on: ubuntu-26.04
+        permissions:
+            contents: read
+            id-token: write # for the KMS key, through workload identity federation
+        strategy:
+            fail-fast: false
+            matrix:
+                dir: ${{ fromJSON(needs.changes.outputs.dirs) }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: tools/go.mod
+                  cache-dependency-path: tools/go.sum
+
+            - name: Download x86_64 packages
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: packages-${{ matrix.dir }}-x86_64
+
+            - name: Download aarch64 packages
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: packages-${{ matrix.dir }}-aarch64
+
+            - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+              with:
+                  workload_identity_provider: projects/455982902327/locations/global/workloadIdentityPools/github/providers/actions
+
+            - name: Sign packages
+              env:
+                  KMS_KEY_VERSION: projects/philde-net/locations/us-west1/keyRings/apk/cryptoKeys/apk-signing/cryptoKeyVersions/1
+                  PUBLIC_KEY: apk.philde.net.rsa.pub
+              run: |
+                  go build -C tools -o "$RUNNER_TEMP/apk-sign" ./cmd/apk-sign
+                  "$RUNNER_TEMP/apk-sign" packages/*/*.apk packages/*/APKINDEX.tar.gz
+
+            - name: Upload signed packages
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: signed-packages-${{ matrix.dir }}
+                  path: ./packages
+                  retention-days: 1
+                  if-no-files-found: error
+
     # Runs even when some packages failed, so that one broken image doesn't
     # hold back the others: an image whose packages are missing fails to
     # download them.
     publish:
-        needs: [changes, package]
+        needs: [changes, sign]
         if: >-
             !cancelled()
             && github.event_name != 'pull_request'
@@ -196,15 +257,11 @@ jobs:
               with:
                   persist-credentials: false
 
-            - name: Download x86_64 packages
+            - name: Download signed packages
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
-                  name: packages-${{ matrix.image.dir }}-x86_64
-
-            - name: Download aarch64 packages
-              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-              with:
-                  name: packages-${{ matrix.image.dir }}-aarch64
+                  name: signed-packages-${{ matrix.image.dir }}
+                  path: ./packages
 
             - name: Compute image tags
               id: tags
@@ -228,7 +285,7 @@ jobs:
               with:
                   config: ${{ matrix.image.config }}
                   tag: ${{ steps.tags.outputs.tags }}
-                  keyring-append: ./melange-x86_64.rsa.pub,./melange-aarch64.rsa.pub
+                  keyring-append: ./apk.philde.net.rsa.pub
                   repository-append: ./packages
 
             - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
@@ -239,10 +296,10 @@ jobs:
                   IMAGE: ${{ steps.publish.outputs.digest }}
               run: cosign sign --yes --recursive "$IMAGE"
 
-    # The check to require: the package and publish jobs depend on which
+    # The check to require: the package, sign and publish jobs depend on which
     # images changed, and may not run at all.
     build:
-        needs: [changes, package, publish]
+        needs: [changes, package, sign, publish]
         if: always()
         runs-on: ubuntu-26.04
         steps:
