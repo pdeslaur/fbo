@@ -404,6 +404,10 @@ jobs:
             # parallel, unless this workflow already has. Images are built
             # reproducibly from the repository's immutable packages, so a
             # rebuild with nothing new from Wolfi is the digest already signed.
+            #
+            # Each cosign gets its own TUF cache in TUF_ROOT: concurrent
+            # cosigns sharing ~/.sigstore race to write its metadata, and one
+            # fails with "failed to persist metadata".
             - name: Sign image
               env:
                   IMAGE: ${{ steps.publish.outputs.digest }}
@@ -415,7 +419,7 @@ jobs:
                           >/dev/null 2>&1; then
                       echo "Already signed: $IMAGE"
                   else
-                      xargs -P 0 -n 1 cosign sign --yes <image-refs
+                      xargs -P 0 -I {} sh -c 'TUF_ROOT=$(mktemp -d) cosign sign --yes "$1"' _ {} <image-refs
                   fi
 
     # The check to require: the package, sign, index and publish jobs depend on
