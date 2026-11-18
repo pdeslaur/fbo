@@ -400,10 +400,14 @@ jobs:
 
             - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
-            # Signs the image index and each per-arch image by digest, in
-            # parallel, unless this workflow already has. Images are built
-            # reproducibly from the repository's immutable packages, so a
-            # rebuild with nothing new from Wolfi is the digest already signed.
+            # Signs the image index and each per-arch image by digest, unless
+            # this workflow already has. Images are built reproducibly from the
+            # repository's immutable packages, so a rebuild with nothing new
+            # from Wolfi is the digest already signed.
+            #
+            # One cosign signs them all: concurrent cosigns race to write the
+            # TUF metadata they share under ~/.sigstore, and one fails with
+            # "failed to persist metadata".
             - name: Sign image
               env:
                   IMAGE: ${{ steps.publish.outputs.digest }}
@@ -415,7 +419,7 @@ jobs:
                           >/dev/null 2>&1; then
                       echo "Already signed: $IMAGE"
                   else
-                      xargs -P 0 -n 1 cosign sign --yes <image-refs
+                      xargs cosign sign --yes <image-refs
                   fi
 
     # The check to require: the package, sign, index and publish jobs depend on
