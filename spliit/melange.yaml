@@ -1,7 +1,7 @@
 package:
     name: spliit
     version: "2.10.2"
-    epoch: 0
+    epoch: 1
     description: Spliit Cloud web static files and Caddy proxy config
     copyright:
         - license: MIT
@@ -73,7 +73,7 @@ environment:
         packages:
             - busybox
             - ca-certificates-bundle
-            - bun=1.4.4-r1
+            - bun=1.4.5-r0
     environment:
         # Baked into the web SPA at build time; the API reads
         # PUBLIC_DEFAULT_CURRENCY_CODE at runtime independently.
