@@ -3,11 +3,11 @@ module github.com/pdeslaur/fbo/tools
 go 1.27.4
 
 require (
-	chainguard.dev/apko v1.5.0
+	chainguard.dev/apko v1.5.1
 	cloud.google.com/go/kms v1.37.0
 	github.com/aws/aws-sdk-go-v2 v1.48.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10
+	github.com/aws/aws-sdk-go-v2/credentials v1.21.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.115.0
 	github.com/chainguard-dev/clog v1.8.1
 	github.com/itchyny/gojq v0.12.20
 	github.com/sethvargo/go-envconfig v1.4.3
@@ -17,7 +17,7 @@ require (
 
 require (
 	chainguard.dev/go-grpc-kit v0.20.0 // indirect
-	chainguard.dev/sdk v0.1.480 // indirect
+	chainguard.dev/sdk v0.1.481 // indirect
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.24.1-0.20261001053825-dbc26066f70a // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
