@@ -135,7 +135,7 @@ jobs:
         # the runner, which needs apt. --privileged lets melange create the
         # bubblewrap sandboxes it builds and tests in.
         container:
-            image: cgr.dev/chainguard/melange:latest-dev@sha256:f729b1700141614cd03af6ae6c568ee5b3e2ee77549b26dca055bc599c816a83
+            image: cgr.dev/chainguard/melange:latest-dev@sha256:30b92a04f0673708a162fc251eb0a0683a5fd4f3d225167135f5866526c8a96d
             options: --privileged
         strategy:
             fail-fast: false
@@ -382,7 +382,7 @@ jobs:
             # --vcs=false leaves the commit out of the index's annotations, so
             # that an image rebuilt from the same packages keeps its digest.
             - name: Build and publish image
-              uses: docker://cgr.dev/chainguard/apko:latest@sha256:a45c1de9c78bebe85b9735395bdf8e955d41a6863117bab404a766f135fcb313
+              uses: docker://cgr.dev/chainguard/apko:latest@sha256:627d5cb31ef831748e2ae3528a0d7760276f823a6efc4f31b3a4cb87223fee73
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
