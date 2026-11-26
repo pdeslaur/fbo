@@ -1,0 +1,41 @@
+package:
+    name: mautrix-discord
+    version: "0.7.7"
+    epoch: 0
+    description: A Matrix-Discord puppeting bridge
+    copyright:
+        - license: AGPL-3.0-or-later
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - build-base
+            - busybox
+            - ca-certificates-bundle
+            - go-1.27=1.27.4-r0
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/mautrix/discord
+          tag: v${{package.version}}
+          expected-commit: c62165a46109d7c824bc0b4bb067ba02ea6528f1
+
+    # As mautrix's CI builds it: goolm is the pure-Go Olm, so there's no
+    # libolm. cgo links go-sqlite3. The bridge reports a development build
+    # unless main.Tag is set.
+    - uses: go/build
+      with:
+          packages: .
+          output: mautrix-discord
+          go-package: go-1.27
+          tags: goolm
+          ldflags: -X main.Tag=v${{package.version}}
+
+test:
+    pipeline:
+        - runs: mautrix-discord --version

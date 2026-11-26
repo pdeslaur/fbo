@@ -12,6 +12,11 @@ published to `ghcr.io/pdeslaur/<image>`.
 | [dns01proxy](dns01proxy) | Solves ACME DNS-01 challenges for clients, with every caddy-dns provider. |
 | [factorio](factorio) | The Factorio headless server. |
 | [ghostunnel](ghostunnel) | A TLS proxy with mutual authentication, including SPIFFE. |
+| [mautrix-discord](mautrix-discord) | The Matrix-Discord bridge, run by bbctl for Beeper. |
+| [mautrix-linkedin](mautrix-linkedin) | The Matrix-LinkedIn bridge, run by bbctl for Beeper. |
+| [mautrix-meta](mautrix-meta) | The Matrix bridges for Facebook Messenger and Instagram, run by bbctl for Beeper, as `mautrix-meta` and `mautrix-meta-instagram`. |
+| [mautrix-telegram](mautrix-telegram) | The Matrix-Telegram bridge, run by bbctl for Beeper. |
+| [mautrix-whatsapp](mautrix-whatsapp) | The Matrix-WhatsApp bridge, run by bbctl for Beeper. |
 | [minecraft](minecraft) | The Minecraft: Java Edition server. |
 | [spliit](spliit) | Spliit Cloud, as `spliit`, `spliit-api`, `spliit-migrate` and `spliit-worker`. |
 

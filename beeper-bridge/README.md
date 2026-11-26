@@ -30,7 +30,7 @@ podman run -d \
     ghcr.io/pdeslaur/beeper-bridge:latest sh-signal
 ```
 
-bbctl downloads the bridge's latest build into `/data` each time it starts.
+bbctl downloads the bridge's latest build into `/data` each time it starts. The `mautrix-*` images instead bundle a bridge built from source, released versions only, which bbctl runs as it is.
 The bridge keeps its data under `DATA_DIR`, `/data` by default, and its
 database under `DB_DIR`, `/data/db` by default. `BEEPER_ENV` picks the Beeper
 environment, `prod` by default.

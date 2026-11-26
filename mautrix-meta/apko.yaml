@@ -1,0 +1,22 @@
+contents:
+    repositories:
+        - https://packages.wolfi.dev/os
+    keyring:
+        - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    packages:
+        - wolfi-baselayout
+        - bridge-manager
+        - mautrix-meta
+        # The bridges convert voice messages, videos and GIFs with ffmpeg.
+        - ffmpeg
+
+environment:
+    # bbctl runs this bridge instead of downloading mautrix's latest build.
+    BEEPER_BRIDGE_CUSTOM_STARTUP_COMMAND: /usr/bin/mautrix-meta
+
+entrypoint:
+    command: /usr/bin/run-bridge
+
+archs:
+    - x86_64
+    - aarch64

@@ -1,0 +1,39 @@
+package:
+    name: mautrix-meta
+    version: "0.2611.0"
+    epoch: 0
+    description: Matrix bridges for Facebook Messenger and Instagram
+    copyright:
+        - license: AGPL-3.0-or-later
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - build-base
+            - busybox
+            - ca-certificates-bundle
+            - git
+            - go-1.27=1.27.4-r0
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/mautrix/meta
+          tag: v${{package.version}}
+          expected-commit: 16f0987cee69791c0da6ccb4387b34a1a954a540
+
+    # As the bridge's build.sh does: maubuild stamps the version from git, and
+    # goolm is the pure-Go Olm, so there's no libolm. cgo links go-sqlite3.
+    - name: Build
+      runs: |
+          BINARY_NAME=mautrix-meta go tool maubuild -tags goolm -o "${{targets.destdir}}/usr/bin/mautrix-meta"
+          BINARY_NAME=mautrix-instagram go tool maubuild -tags goolm -o "${{targets.destdir}}/usr/bin/mautrix-instagram"
+
+test:
+    pipeline:
+        - runs: mautrix-meta --version
+        - runs: mautrix-instagram --version
