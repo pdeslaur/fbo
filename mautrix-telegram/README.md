@@ -6,14 +6,16 @@
 
 `ghcr.io/pdeslaur/mautrix-telegram`, for `linux/amd64` and `linux/arm64`, tagged `latest` and with the bridge's version. See [Images](../README.md#images) for how it's built and how to verify its signature.
 
-The image is [beeper-bridge](../beeper-bridge)'s with the bridge added: bbctl runs it from `BEEPER_BRIDGE_CUSTOM_STARTUP_COMMAND` rather than downloading mautrix's latest build. Usage is the same, with this bridge's name:
+The image is [beeper-bridge](../beeper-bridge)'s with the bridge added: bbctl runs it from `BEEPER_BRIDGE_CUSTOM_STARTUP_COMMAND` rather than downloading mautrix's latest build. It sets `BEEPER_BRIDGE_TYPE` to the bridge's type, and runs it under the name below unless given another, after any `bbctl run` flags. Otherwise usage is the same:
 
 ```sh
 podman run -d \
     -e MATRIX_ACCESS_TOKEN=syt_... \
     -v telegram:/data \
-    ghcr.io/pdeslaur/mautrix-telegram:latest sh-telegram
+    ghcr.io/pdeslaur/mautrix-telegram:latest
 ```
+
+The default name is `sh-telegram`.
 
 ## Updates
 
