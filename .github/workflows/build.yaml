@@ -226,6 +226,36 @@ jobs:
                   retention-days: 1
                   if-no-files-found: error
 
+    # Builds the commands the sign and index jobs run, once, while the packages
+    # build: their dependencies, the Cloud KMS, gRPC and AWS SDKs, take most of
+    # a minute to compile, which every sign job would otherwise spend.
+    tools:
+        needs: changes
+        if: >-
+            github.event_name != 'pull_request'
+            && needs.changes.outputs.dirs != '[]'
+        runs-on: ubuntu-26.04
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+
+            - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+              with:
+                  go-version-file: tools/go.mod
+                  cache-dependency-path: tools/go.sum
+
+            - name: Build tools
+              run: go build -C tools -o "$RUNNER_TEMP/tools/" ./cmd/apk-sign ./cmd/apk-repo
+
+            - name: Upload tools
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: tools
+                  path: ${{ runner.temp }}/tools
+                  retention-days: 1
+                  if-no-files-found: error
+
     # Replaces the throwaway signatures of a directory's packages, for both
     # arches, with ones by the apk/apk-signing KMS key in philde-net, and adds
     # them to the apk repository. Only this workflow on main may sign with the
@@ -233,7 +263,7 @@ jobs:
     # through cloudflare-sts, so pull requests keep the throwaway signatures and
     # publish nothing. Runs even when some packages failed, like publish.
     sign:
-        needs: [changes, package]
+        needs: [changes, package, tools]
         if: >-
             !cancelled()
             && github.event_name != 'pull_request'
@@ -252,11 +282,6 @@ jobs:
               with:
                   persist-credentials: false
 
-            - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
-              with:
-                  go-version-file: tools/go.mod
-                  cache-dependency-path: tools/go.sum
-
             - name: Download x86_64 packages
               uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
@@ -267,12 +292,18 @@ jobs:
               with:
                   name: packages-${{ matrix.dir }}-aarch64
 
+            - name: Download tools
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: tools
+                  path: ${{ runner.temp }}
+
+            # Artifacts don't keep the executable bit.
+            - run: chmod +x "$RUNNER_TEMP/apk-sign" "$RUNNER_TEMP/apk-repo"
+
             - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
               with:
                   workload_identity_provider: projects/455982902327/locations/global/workloadIdentityPools/github/providers/actions
-
-            - name: Build tools
-              run: go build -C tools -o "$RUNNER_TEMP/" ./cmd/apk-sign ./cmd/apk-repo
 
             - name: Sign packages
               env:
@@ -288,7 +319,7 @@ jobs:
     # it. Runs once, after every sign job, so the index has one writer; runs
     # on main never overlap.
     index:
-        needs: [changes, sign]
+        needs: [changes, sign, tools]
         if: >-
             !cancelled()
             && github.event_name != 'pull_request'
@@ -303,17 +334,18 @@ jobs:
               with:
                   persist-credentials: false
 
-            - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+            - name: Download tools
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
               with:
-                  go-version-file: tools/go.mod
-                  cache-dependency-path: tools/go.sum
+                  name: tools
+                  path: ${{ runner.temp }}
+
+            # Artifacts don't keep the executable bit.
+            - run: chmod +x "$RUNNER_TEMP/apk-sign" "$RUNNER_TEMP/apk-repo"
 
             - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
               with:
                   workload_identity_provider: projects/455982902327/locations/global/workloadIdentityPools/github/providers/actions
-
-            - name: Build tools
-              run: go build -C tools -o "$RUNNER_TEMP/" ./cmd/apk-repo
 
             - name: Index the repository
               env:
