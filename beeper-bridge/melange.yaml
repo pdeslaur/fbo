@@ -1,0 +1,53 @@
+package:
+    name: bridge-manager
+    version: "0.15.0"
+    epoch: 0
+    description: bbctl, Beeper's manager for self-hosted bridges, and an entrypoint running one bridge
+    copyright:
+        - license: Apache-2.0
+    dependencies:
+        runtime:
+            # The entrypoint runs under /bin/sh and writes bbctl's config with jq.
+            - busybox
+            - jq
+            # bbctl downloads the bridges from mautrix's CI over HTTPS.
+            - ca-certificates-bundle
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - busybox
+            - ca-certificates-bundle
+            - go-1.26=1.26.11-r0
+    environment:
+        CGO_ENABLED: "0"
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/beeper/bridge-manager
+          tag: v${{package.version}}
+          expected-commit: 649659929de880afdb24503f8908c5cf3da3a20e
+
+    # bbctl reports its version as a development build unless main.Tag
+    # matches the version in its source.
+    - uses: go/build
+      with:
+          packages: ./cmd/bbctl
+          output: bbctl
+          go-package: go-1.26
+          ldflags: -X main.Tag=v${{package.version}}
+
+    - runs: install -Dm755 run-bridge "${{targets.destdir}}/usr/bin/run-bridge"
+
+test:
+    pipeline:
+        - runs: |
+              bbctl --version | grep -F "v${{package.version}}"
+              # It refuses to start without an access token.
+              if run-bridge sh-signal 2>err; then exit 1; fi
+              grep -F "MATRIX_ACCESS_TOKEN not set" err

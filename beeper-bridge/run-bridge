@@ -1,0 +1,32 @@
+#!/bin/sh
+# Runs a bridge with bbctl: "run-bridge sh-signal". It writes bbctl's config
+# from the environment, as the upstream image's run-bridge.sh does, then execs
+# bbctl, which becomes the container's PID 1 and so gets its stop signal: it
+# passes SIGTERM on to the bridge.
+#
+# MATRIX_ACCESS_TOKEN is the Beeper account's access token. The bridge keeps
+# its data under DATA_DIR, /data by default, and its database under DB_DIR,
+# /data/db by default. BEEPER_ENV picks the Beeper environment, prod by
+# default. A config already at BBCTL_CONFIG, /tmp/bbctl.json by default, is
+# used as is.
+
+set -eu
+
+export BBCTL_CONFIG="${BBCTL_CONFIG:-/tmp/bbctl.json}"
+export BEEPER_ENV="${BEEPER_ENV:-prod}"
+
+if [ ! -f "$BBCTL_CONFIG" ]; then
+	: "${MATRIX_ACCESS_TOKEN:?MATRIX_ACCESS_TOKEN not set}"
+	export DATA_DIR="${DATA_DIR:-/data}"
+	export DB_DIR="${DB_DIR:-/data/db}"
+	mkdir -p "$DATA_DIR" "$DB_DIR"
+	# The config holds the access token.
+	umask 077
+	jq -n '{environments: {(env.BEEPER_ENV): {
+		access_token: env.MATRIX_ACCESS_TOKEN,
+		database_dir: env.DB_DIR,
+		bridge_data_dir: env.DATA_DIR
+	}}}' >"$BBCTL_CONFIG"
+fi
+
+exec bbctl run "$@"
