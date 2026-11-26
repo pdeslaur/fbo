@@ -46,8 +46,8 @@ pipeline:
     # the pure-Go Olm, so there's no libolm. cgo links go-sqlite3 too.
     - name: Build
       runs: |
-          LIBRARY_PATH="$PWD/pkg/libsignalgo/libsignal/target/release" \
-              BINARY_NAME=mautrix-signal go tool maubuild -tags goolm -o "${{targets.destdir}}/usr/bin/mautrix-signal"
+          GOFLAGS="-tags=goolm" LIBRARY_PATH="$PWD/pkg/libsignalgo/libsignal/target/release" \
+              BINARY_NAME=mautrix-signal go tool maubuild -o "${{targets.destdir}}/usr/bin/mautrix-signal"
 
 test:
     pipeline:
