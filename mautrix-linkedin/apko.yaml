@@ -13,9 +13,14 @@ contents:
 environment:
     # bbctl runs this bridge instead of downloading mautrix's latest build.
     BEEPER_BRIDGE_CUSTOM_STARTUP_COMMAND: /usr/bin/mautrix-linkedin
+    # The bridge type, for bbctl registering a bridge whose name doesn't say it.
+    BEEPER_BRIDGE_TYPE: linkedin
 
 entrypoint:
     command: /usr/bin/run-bridge
+
+# The bridge's name on Beeper, when none is given.
+cmd: sh-linkedin
 
 archs:
     - x86_64

@@ -6,16 +6,18 @@
 
 `ghcr.io/pdeslaur/mautrix-meta`, running `mautrix-meta` for Facebook Messenger, and `ghcr.io/pdeslaur/mautrix-meta-instagram`, running `mautrix-instagram`, for `linux/amd64` and `linux/arm64`, tagged `latest` and with the bridge's version. See [Images](../README.md#images) for how it's built and how to verify its signature.
 
-The image is [beeper-bridge](../beeper-bridge)'s with the bridge added: bbctl runs it from `BEEPER_BRIDGE_CUSTOM_STARTUP_COMMAND` rather than downloading mautrix's latest build. Usage is the same, with this bridge's name:
+The image is [beeper-bridge](../beeper-bridge)'s with the bridge added: bbctl runs it from `BEEPER_BRIDGE_CUSTOM_STARTUP_COMMAND` rather than downloading mautrix's latest build. It sets `BEEPER_BRIDGE_TYPE` to the bridge's type, and runs it under the name below unless given another, after any `bbctl run` flags. Otherwise usage is the same:
 
 ```sh
 podman run -d \
     -e MATRIX_ACCESS_TOKEN=syt_... \
     -v facebook:/data \
-    ghcr.io/pdeslaur/mautrix-meta:latest sh-facebook
+    ghcr.io/pdeslaur/mautrix-meta:latest
 ```
 
-Instagram is the same with `ghcr.io/pdeslaur/mautrix-meta-instagram` and `sh-instagram`.
+The default name is `sh-facebook`.
+
+Instagram is the same with `ghcr.io/pdeslaur/mautrix-meta-instagram`, whose default name is `sh-instagram`.
 
 ## Updates
 
