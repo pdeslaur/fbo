@@ -25,6 +25,9 @@ environment:
             - clang-22
             - cmake
             - protoc
+            - protobuf-dev
+    environment:
+        GOFLAGS: "-tags=goolm"
 
 pipeline:
     # libsignal is a submodule, at the version the bridge's Go bindings match.
@@ -46,7 +49,7 @@ pipeline:
     # the pure-Go Olm, so there's no libolm. cgo links go-sqlite3 too.
     - name: Build
       runs: |
-          GOFLAGS="-tags=goolm" LIBRARY_PATH="$PWD/pkg/libsignalgo/libsignal/target/release" \
+          LIBRARY_PATH="$PWD/pkg/libsignalgo/libsignal/target/release" \
               BINARY_NAME=mautrix-signal go tool maubuild -o "${{targets.destdir}}/usr/bin/mautrix-signal"
 
 test:

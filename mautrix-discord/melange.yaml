@@ -17,6 +17,8 @@ environment:
             - busybox
             - ca-certificates-bundle
             - go-1.27=1.27.4-r0
+    environment:
+        GOFLAGS: "-tags=goolm"
 
 pipeline:
     - uses: git-checkout
@@ -34,7 +36,10 @@ pipeline:
           output: mautrix-discord
           go-package: go-1.27
           tags: goolm
-          ldflags: -X main.Tag=v${{package.version}}
+          ldflags: |
+              -X main.Tag=v${{package.version}}
+              -X main.Commit=${{vars.commit}}
+              -X "main.BuildTime=$(date -u '+%b %d %Y, %H:%M:%S')"
 
 test:
     pipeline:
