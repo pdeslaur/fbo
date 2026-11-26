@@ -11,6 +11,10 @@ contents:
 entrypoint:
     command: /usr/bin/anki-sync-server
 
+# The server shuts down gracefully on SIGINT alone (tokio's ctrl_c); as PID 1,
+# it ignores the runtime's default SIGTERM and is killed after the timeout.
+stop-signal: SIGINT
+
 archs:
     - x86_64
     - aarch64
