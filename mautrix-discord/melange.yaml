@@ -36,10 +36,7 @@ pipeline:
           output: mautrix-discord
           go-package: go-1.27
           tags: goolm
-          ldflags: |
-              -X main.Tag=v${{package.version}}
-              -X main.Commit=${{vars.commit}}
-              -X "main.BuildTime=$(date -u '+%b %d %Y, %H:%M:%S')"
+          ldflags: -X main.Tag=v${{package.version}}
 
 test:
     pipeline:
