@@ -43,7 +43,10 @@ pipeline:
 
     - name: Build libolm
       runs: |
+          # Its CMakeLists predates CMake 3.5, which CMake 4 no longer accepts
+          # unless told the policies of 3.5 are fine.
           cmake -S olm -B olm/build \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
               -DCMAKE_BUILD_TYPE=Release \
               -DBUILD_SHARED_LIBS=OFF \
               -DOLM_TESTS=OFF
