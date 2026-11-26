@@ -5,6 +5,8 @@ package:
     description: A Matrix-Discord puppeting bridge
     copyright:
         - license: AGPL-3.0-or-later
+        # libolm, linked statically.
+        - license: Apache-2.0
 
 environment:
     contents:
@@ -16,9 +18,8 @@ environment:
             - build-base
             - busybox
             - ca-certificates-bundle
+            - cmake
             - go-1.27=1.27.4-r0
-    environment:
-        GOFLAGS: "-tags=goolm"
 
 pipeline:
     - uses: git-checkout
@@ -27,16 +28,33 @@ pipeline:
           tag: v${{package.version}}
           expected-commit: c62165a46109d7c824bc0b4bb067ba02ea6528f1
 
-    # As mautrix's CI builds it: goolm is the pure-Go Olm, so there's no
-    # libolm. cgo links go-sqlite3. The bridge reports a development build
-    # unless main.Tag is set.
-    - uses: go/build
+    # The bridge is on mautrix-go's older line, whose crypto package always
+    # links libolm: goolm can't replace it, as it does for the other bridges.
+    # Wolfi doesn't package libolm, which is deprecated upstream, so it's
+    # built here as mautrix's CI links it: statically. 3.2.16 is its last
+    # release.
+    - uses: fetch
       with:
-          packages: .
-          output: mautrix-discord
-          go-package: go-1.27
-          tags: goolm
-          ldflags: -X main.Tag=v${{package.version}}
+          uri: https://gitlab.matrix.org/matrix-org/olm/-/archive/3.2.16/olm-3.2.16.tar.gz
+          expected-sha256: 1e90f9891009965fd064be747616da46b232086fe270b77605ec9bda34272a68
+          directory: olm
+
+    - name: Build libolm
+      runs: |
+          cmake -S olm -B olm/build \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_SHARED_LIBS=OFF \
+              -DOLM_TESTS=OFF
+          cmake --build olm/build -j"$(nproc)"
+
+    # As the bridge's build.sh does. It reports a development build unless
+    # main.Tag is set. cgo also links go-sqlite3.
+    - name: Build
+      runs: |
+          CGO_CFLAGS="-I$PWD/olm/include" CGO_LDFLAGS="-L$PWD/olm/build" \
+              go build -trimpath \
+              -ldflags "-s -w -X main.Tag=v${{package.version}}" \
+              -o "${{targets.destdir}}/usr/bin/mautrix-discord" .
 
 test:
     pipeline:
