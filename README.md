@@ -15,6 +15,7 @@ published to `ghcr.io/pdeslaur/<image>`.
 | [mautrix-discord](mautrix-discord) | The Matrix-Discord bridge, run by bbctl for Beeper. |
 | [mautrix-linkedin](mautrix-linkedin) | The Matrix-LinkedIn bridge, run by bbctl for Beeper. |
 | [mautrix-meta](mautrix-meta) | The Matrix bridges for Facebook Messenger and Instagram, run by bbctl for Beeper, as `mautrix-meta` and `mautrix-meta-instagram`. |
+| [mautrix-signal](mautrix-signal) | The Matrix-Signal bridge, run by bbctl for Beeper. |
 | [mautrix-telegram](mautrix-telegram) | The Matrix-Telegram bridge, run by bbctl for Beeper. |
 | [mautrix-whatsapp](mautrix-whatsapp) | The Matrix-WhatsApp bridge, run by bbctl for Beeper. |
 | [minecraft](minecraft) | The Minecraft: Java Edition server. |
