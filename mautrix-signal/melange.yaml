@@ -1,0 +1,57 @@
+package:
+    name: mautrix-signal
+    version: "0.2611.0"
+    epoch: 0
+    description: A Matrix-Signal puppeting bridge
+    copyright:
+        - license: AGPL-3.0-or-later
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - build-base
+            - busybox
+            - ca-certificates-bundle
+            - git
+            - go-1.27=1.27.4-r0
+            # libsignal's Rust toolchain, from its rust-toolchain file, and
+            # what its crates build with: BoringSSL with cmake, bindings with
+            # libclang, protobuf code with protoc.
+            - rust-1.98=1.98.1-r4
+            - clang-22
+            - cmake
+            - protoc
+            - protobuf-dev
+    environment:
+        GOFLAGS: "-tags=goolm"
+
+pipeline:
+    # libsignal is a submodule, at the version the bridge's Go bindings match.
+    - uses: git-checkout
+      with:
+          repository: https://github.com/mautrix/signal
+          tag: v${{package.version}}
+          expected-commit: 77aef41f75c98fc67e8d0d65e5d11797944ed005
+          recurse-submodules: true
+
+    # As the bridge's build-rust.sh does: libsignal's C API, a static library
+    # the Go bindings link with cgo.
+    - name: Build libsignal
+      runs: |
+          cd pkg/libsignalgo/libsignal
+          RUSTFLAGS="-Ctarget-feature=-crt-static" cargo build -p libsignal-ffi --profile=release
+
+    # As build-go.sh does: maubuild stamps the version from git, and goolm is
+    # the pure-Go Olm, so there's no libolm. cgo links go-sqlite3 too.
+    - name: Build
+      runs: |
+          LIBRARY_PATH="$PWD/pkg/libsignalgo/libsignal/target/release" \
+              BINARY_NAME=mautrix-signal go tool maubuild -o "${{targets.destdir}}/usr/bin/mautrix-signal"
+
+test:
+    pipeline:
+        - runs: mautrix-signal --version

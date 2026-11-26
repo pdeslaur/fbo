@@ -31,9 +31,10 @@ podman run -d \
 ```
 
 bbctl downloads the bridge's latest build into `/data` each time it starts.
-The bridge keeps its data under `DATA_DIR`, `/data` by default, and its
-database under `DB_DIR`, `/data/db` by default. `BEEPER_ENV` picks the Beeper
-environment, `prod` by default.
+The `mautrix-*` images instead bundle a bridge built from source, released
+versions only, which bbctl runs as it is. The bridge keeps its data under
+`DATA_DIR`, `/data` by default, and its database under `DB_DIR`, `/data/db`
+by default. `BEEPER_ENV` picks the Beeper environment, `prod` by default.
 
 bbctl gives the bridge 3 seconds to exit after the stop signal, then kills it
 and exits with status 1.

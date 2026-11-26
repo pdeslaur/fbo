@@ -1,0 +1,37 @@
+package:
+    name: mautrix-telegram
+    version: "0.2611.0"
+    epoch: 0
+    description: A Matrix-Telegram puppeting bridge
+    copyright:
+        - license: AGPL-3.0-or-later
+
+environment:
+    contents:
+        repositories:
+            - https://packages.wolfi.dev/os
+        keyring:
+            - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        packages:
+            - build-base
+            - busybox
+            - ca-certificates-bundle
+            - git
+            - go-1.27=1.27.4-r0
+
+pipeline:
+    - uses: git-checkout
+      with:
+          repository: https://github.com/mautrix/telegram
+          tag: v${{package.version}}
+          expected-commit: 8d85e547208fcdeae47b08f57bca0a7c8cf910af
+
+    # As the bridge's build.sh does: maubuild stamps the version from git, and
+    # goolm is the pure-Go Olm, so there's no libolm. cgo links go-sqlite3.
+    - name: Build
+      runs: |
+          BINARY_NAME=mautrix-telegram go tool maubuild -tags goolm -o "${{targets.destdir}}/usr/bin/mautrix-telegram"
+
+test:
+    pipeline:
+        - runs: mautrix-telegram --version
