@@ -33,6 +33,8 @@ pipeline:
     # Wolfi doesn't package libolm, which is deprecated upstream, so it's
     # built here as mautrix's CI links it: statically. 3.2.16 is its last
     # release.
+    - runs: mkdir -p olm
+
     - uses: fetch
       with:
           uri: https://gitlab.matrix.org/matrix-org/olm/-/archive/3.2.16/olm-3.2.16.tar.gz
