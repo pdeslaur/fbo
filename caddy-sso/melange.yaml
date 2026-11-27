@@ -4,7 +4,7 @@ package:
     # would replace this one in the image.
     name: caddy-sso
     version: "2.11.9"
-    epoch: 3
+    epoch: 4
     description: Caddy web server with ACME proxy and cloudflare-sts DNS providers
     copyright:
         - license: Apache-2.0
@@ -50,7 +50,7 @@ pipeline:
             echo 'func main() { caddycmd.Main() }'
           } > cmd/caddy/main.go
           go get github.com/caddy-dns/acmeproxy@v1.1.1
-          go get github.com/pdeslaur/caddy-pocketid@v0.3.0
+          go get github.com/pdeslaur/caddy-pocketid@v0.4.0
           go get github.com/pdeslaur/hangar@v0.1.0
           go mod tidy
 
