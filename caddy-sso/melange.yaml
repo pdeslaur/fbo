@@ -4,7 +4,7 @@ package:
     # would replace this one in the image.
     name: caddy-sso
     version: "2.11.9"
-    epoch: 4
+    epoch: 5
     description: Caddy web server with ACME proxy and cloudflare-sts DNS providers
     copyright:
         - license: Apache-2.0
@@ -21,7 +21,7 @@ environment:
         packages:
             - busybox
             - ca-certificates-bundle
-            - go-1.26=1.26.11-r0
+            - go-1.27=1.27.4-r0
     environment:
         CGO_ENABLED: "0"
 
@@ -44,21 +44,21 @@ pipeline:
             echo '	_ "github.com/caddyserver/caddy/v2/modules/standard"'
             echo '	_ "github.com/caddy-dns/acmeproxy"'
             echo '	_ "github.com/pdeslaur/caddy-pocketid"'
-            echo '	_ "github.com/pdeslaur/hangar/caddydns"'
+            echo '	_ "github.com/pdeslaur/cloudflare-sts/go/caddydns"'
             echo ')'
             echo ''
             echo 'func main() { caddycmd.Main() }'
           } > cmd/caddy/main.go
           go get github.com/caddy-dns/acmeproxy@v1.1.1
           go get github.com/pdeslaur/caddy-pocketid@v0.4.0
-          go get github.com/pdeslaur/hangar@v0.1.0
+          go get github.com/pdeslaur/cloudflare-sts@v0.27.0
           go mod tidy
 
     - uses: go/build
       with:
           packages: ./cmd/caddy
           output: caddy
-          go-package: go-1.26
+          go-package: go-1.27
           tags: nobadger,nomysql,nopgx
 
 test:
