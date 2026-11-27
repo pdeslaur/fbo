@@ -8,7 +8,7 @@ published to `ghcr.io/pdeslaur/<image>`.
 |---|---|
 | [anki-sync](anki-sync) | The Anki sync server. |
 | [beeper-bridge](beeper-bridge) | A Beeper self-hosted bridge, run by bbctl. |
-| [caddy-sso](caddy-sso) | Caddy with the ACME proxy DNS provider and Pocket ID single sign-on. |
+| [caddy-sso](caddy-sso) | Caddy with the cloudflare-sts DNS provider and Pocket ID single sign-on. |
 | [dns01proxy](dns01proxy) | Solves ACME DNS-01 challenges for clients, with every caddy-dns provider. |
 | [factorio](factorio) | The Factorio headless server. |
 | [ghostunnel](ghostunnel) | A TLS proxy with mutual authentication, including SPIFFE. |

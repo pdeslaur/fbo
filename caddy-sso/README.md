@@ -1,14 +1,12 @@
 # caddy-sso
 
-[Caddy](https://caddyserver.com) built with three extra modules:
+[Caddy](https://caddyserver.com) built with two extra modules:
 
-- [caddy-dns/acmeproxy](https://github.com/caddy-dns/acmeproxy), to solve ACME
-  DNS-01 challenges through a proxy such as [dns01proxy](../dns01proxy)
-  rather than holding DNS provider credentials.
 - [caddy-pocketid](https://github.com/pdeslaur/caddy-pocketid), which adds the
   `pocketid_auth` directive for single sign-on with
   [Pocket ID](https://pocket-id.org).
-- hangar's [caddydns](https://github.com/pdeslaur/hangar/tree/main/caddydns),
+- cloudflare-sts's
+  [caddydns](https://github.com/pdeslaur/cloudflare-sts/tree/main/go/caddydns),
   `dns.providers.cloudflare_sts`, to solve ACME DNS-01 challenges through
   [cloudflare-sts](https://github.com/pdeslaur/cloudflare-sts) with the
   workload's SPIFFE identity rather than holding a DNS token.
@@ -42,5 +40,5 @@ podman run --rm --entrypoint caddy ghcr.io/pdeslaur/caddy-sso:latest list-module
 ## Updates
 
 A daily [update workflow](../.github/workflows/update.yaml) bumps Caddy and the
-three modules to their latest releases and opens a pull request that merges once
+two modules to their latest releases and opens a pull request that merges once
 the build passes. See [melange-update](../tools/cmd/melange-update) for how.
