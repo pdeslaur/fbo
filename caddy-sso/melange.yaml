@@ -4,8 +4,8 @@ package:
     # would replace this one in the image.
     name: caddy-sso
     version: "2.11.9"
-    epoch: 5
-    description: Caddy web server with ACME proxy and cloudflare-sts DNS providers
+    epoch: 6
+    description: Caddy web server with the cloudflare-sts DNS provider and Pocket ID single sign-on
     copyright:
         - license: Apache-2.0
     dependencies:
@@ -32,7 +32,7 @@ pipeline:
           tag: v${{package.version}}
           expected-commit: 0d98caea58f794f88e709b1bef2880996a471bca
 
-    - name: Add the ACME proxy and cloudflare-sts DNS providers and the pocketid auth plugin
+    - name: Add the cloudflare-sts DNS provider and the pocketid auth plugin
       runs: |
           {
             echo 'package main'
@@ -42,14 +42,12 @@ pipeline:
             echo ''
             echo '	caddycmd "github.com/caddyserver/caddy/v2/cmd"'
             echo '	_ "github.com/caddyserver/caddy/v2/modules/standard"'
-            echo '	_ "github.com/caddy-dns/acmeproxy"'
             echo '	_ "github.com/pdeslaur/caddy-pocketid"'
             echo '	_ "github.com/pdeslaur/cloudflare-sts/go/caddydns"'
             echo ')'
             echo ''
             echo 'func main() { caddycmd.Main() }'
           } > cmd/caddy/main.go
-          go get github.com/caddy-dns/acmeproxy@v1.1.1
           go get github.com/pdeslaur/caddy-pocketid@v0.4.0
           go get github.com/pdeslaur/cloudflare-sts@v0.27.0
           go mod tidy

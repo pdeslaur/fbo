@@ -4,8 +4,8 @@
 DNS-01 challenges on behalf of clients such as Caddy's
 [acmeproxy](https://github.com/caddy-dns/acmeproxy) module, so that only the
 proxy holds DNS provider credentials. This build includes every
-[caddy-dns](https://github.com/caddy-dns) provider, and hangar's
-[`cloudflare_sts`](https://github.com/pdeslaur/hangar/tree/main/caddydns), which
+[caddy-dns](https://github.com/caddy-dns) provider, and cloudflare-sts's
+[`cloudflare_sts`](https://github.com/pdeslaur/cloudflare-sts/tree/main/go/caddydns), which
 answers challenges through [cloudflare-sts](https://github.com/pdeslaur/cloudflare-sts)
 with the workload's JWT-SVID, so the proxy holds no DNS credential either.
 
