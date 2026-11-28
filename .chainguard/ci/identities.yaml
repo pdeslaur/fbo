@@ -10,11 +10,13 @@ trust:
     # The bots that open this repository's pull requests: octo-sts for the
     # update and digests workflows, and Dependabot. The IDs are their bot
     # users' IDs.
-    bots:
-      github: {app: {octo-sts: 157150467, dependabot: 49699333}}
+    octo-sts:
+      github: {app: {octo-sts: 157150467}}
+    dependabot:
+      github: {app: {dependabot: 49699333}}
   subrings:
     trusted:
-      authors: [owner, bots]
+      authors: [owner, octo-sts, dependabot]
   # Required once a trust section exists. Checks don't get the token.
   github_token: 1.trusted
   cache:
@@ -23,7 +25,7 @@ trust:
       rings: [2]
     # Pull requests from trusted authors start from trunk and fill their own
     # pool. Pull requests from anyone else get no cache.
-    trusted:
+    prs:
       rings: [1.trusted]
       seed: trunk
 
