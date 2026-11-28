@@ -1,0 +1,14 @@
+# The environment of every check that names no other.
+version: 1
+
+environment:
+  packages:
+    - bash
+    - git
+    - go-1.27
+    # go test -race needs cgo.
+    - gcc
+    - glibc-dev
+  vars:
+    # Fail rather than download a newer toolchain than go-1.27 provides.
+    GOTOOLCHAIN: local
