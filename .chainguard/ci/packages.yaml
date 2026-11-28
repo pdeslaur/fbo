@@ -1,0 +1,41 @@
+# Builds and tests the melange package of each image directory, for each
+# arch, as the package job of .github/workflows/build.yaml does. The packages
+# are signed with a throwaway key and published nowhere.
+#
+# Advisory while it runs alongside the GitHub Actions build.
+version: 1
+
+checks:
+  build:
+    advisory: true
+    environment: melange
+    timeout: 30m
+    network:
+      egress: [packages.wolfi.dev, github.com, proxy.golang.org, storage.googleapis.com, sum.golang.org]
+    shell: bash
+    script: |
+      set -o pipefail
+      melange keygen "melange-$ARCH.rsa"
+      melange build "$DIR/melange.yaml" \
+        --arch "$ARCH" \
+        --build-date "$(git log -1 --format=%cI -- "$DIR")" \
+        --signing-key "melange-$ARCH.rsa" \
+        --source-dir "$DIR" \
+        --out-dir ./packages
+      melange test "$DIR/melange.yaml" \
+        --arch "$ARCH" \
+        --runner bubblewrap \
+        --repository-append ./packages \
+        --keyring-append "./melange-$ARCH.rsa.pub" \
+        --repository-append https://packages.wolfi.dev/os \
+        --keyring-append https://packages.wolfi.dev/os/wolfi-signing.rsa.pub \
+        --test-package-append busybox
+    foreach:
+      - name: ghostunnel-x86_64
+        vars: {DIR: ghostunnel, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["ghostunnel/**"]}
+      - name: ghostunnel-aarch64
+        vars: {DIR: ghostunnel, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["ghostunnel/**"]}
