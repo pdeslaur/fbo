@@ -15,12 +15,25 @@ checks:
     shell: bash
     script: |
       set -o pipefail
+
+      # Checks intercepts HTTPS with a CA that the VM trusts through
+      # SSL_CERT_FILE, but melange's build sandbox has only Wolfi's CAs. The
+      # build gets a copy of the directory with the CA in it, and trusts it.
+      source=$(mktemp -d /var/tmp/source.XXXXXX)
+      cp -a "$DIR/." "$source/"
+      cp "$SSL_CERT_FILE" "$source/.checks-ca.pem"
+      printf '%s\n' \
+        SSL_CERT_FILE=/home/build/.checks-ca.pem \
+        GIT_SSL_CAINFO=/home/build/.checks-ca.pem \
+        >checks-ca.env
+
       melange keygen "melange-$ARCH.rsa"
       melange build "$DIR/melange.yaml" \
         --arch "$ARCH" \
         --build-date "$(git log -1 --format=%cI -- "$DIR")" \
         --signing-key "melange-$ARCH.rsa" \
-        --source-dir "$DIR" \
+        --source-dir "$source" \
+        --env-file checks-ca.env \
         --out-dir ./packages
       melange test "$DIR/melange.yaml" \
         --arch "$ARCH" \
