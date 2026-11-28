@@ -1,0 +1,168 @@
+# Builds and tests the melange package of each image directory, for each
+# arch, as the package job of .github/workflows/build.yaml does. The packages
+# are signed with a throwaway key and published nowhere.
+#
+# Advisory while it runs alongside the GitHub Actions build.
+version: 1
+
+checks:
+  build:
+    advisory: true
+    environment: melange
+    timeout: 30m
+    network:
+      # The packages fetch from many hosts: GitHub, the Go, crates.io and npm
+      # registries, and each project's own downloads. The checks hold no
+      # credentials.
+      egress: ["*"]
+    vars:
+      # melange builds in TMPDIR, which defaults to /tmp, which Checks keeps
+      # in memory and is too small for the larger builds.
+      TMPDIR: /var/tmp
+    shell: bash
+    script: |
+      set -o pipefail
+
+      # Checks intercepts HTTPS with a CA that the VM trusts through
+      # SSL_CERT_FILE, but melange's build sandbox has only Wolfi's CAs. The
+      # build gets a copy of the directory with the CA in it, and trusts it.
+      source=$(mktemp -d /var/tmp/source.XXXXXX)
+      cp -a "$DIR/." "$source/"
+      cp "$SSL_CERT_FILE" "$source/.checks-ca.pem"
+      printf '%s\n' \
+        SSL_CERT_FILE=/home/build/.checks-ca.pem \
+        GIT_SSL_CAINFO=/home/build/.checks-ca.pem \
+        CARGO_HTTP_CAINFO=/home/build/.checks-ca.pem \
+        >checks-ca.env
+
+      melange keygen "melange-$ARCH.rsa"
+      melange build "$DIR/melange.yaml" \
+        --arch "$ARCH" \
+        --build-date "$(git log -1 --format=%cI -- "$DIR")" \
+        --signing-key "melange-$ARCH.rsa" \
+        --source-dir "$source" \
+        --env-file checks-ca.env \
+        --out-dir ./packages
+      melange test "$DIR/melange.yaml" \
+        --arch "$ARCH" \
+        --runner bubblewrap \
+        --repository-append ./packages \
+        --keyring-append "./melange-$ARCH.rsa.pub" \
+        --repository-append https://packages.wolfi.dev/os \
+        --keyring-append https://packages.wolfi.dev/os/wolfi-signing.rsa.pub \
+        --test-package-append busybox
+    # One entry per image directory and arch. An image directory needs its
+    # entries added here.
+    foreach:
+      - name: anki-sync-x86_64
+        vars: {DIR: anki-sync, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["anki-sync/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: anki-sync-aarch64
+        vars: {DIR: anki-sync, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["anki-sync/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: beeper-bridge-x86_64
+        vars: {DIR: beeper-bridge, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["beeper-bridge/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: beeper-bridge-aarch64
+        vars: {DIR: beeper-bridge, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["beeper-bridge/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: caddy-sso-x86_64
+        vars: {DIR: caddy-sso, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["caddy-sso/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: caddy-sso-aarch64
+        vars: {DIR: caddy-sso, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["caddy-sso/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: dns01proxy-x86_64
+        vars: {DIR: dns01proxy, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["dns01proxy/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: dns01proxy-aarch64
+        vars: {DIR: dns01proxy, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["dns01proxy/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: factorio-x86_64
+        vars: {DIR: factorio, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["factorio/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: factorio-aarch64
+        vars: {DIR: factorio, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["factorio/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: ghostunnel-x86_64
+        vars: {DIR: ghostunnel, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["ghostunnel/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: ghostunnel-aarch64
+        vars: {DIR: ghostunnel, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["ghostunnel/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-discord-x86_64
+        vars: {DIR: mautrix-discord, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["mautrix-discord/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-discord-aarch64
+        vars: {DIR: mautrix-discord, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["mautrix-discord/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-linkedin-x86_64
+        vars: {DIR: mautrix-linkedin, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["mautrix-linkedin/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-linkedin-aarch64
+        vars: {DIR: mautrix-linkedin, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["mautrix-linkedin/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-meta-x86_64
+        vars: {DIR: mautrix-meta, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["mautrix-meta/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-meta-aarch64
+        vars: {DIR: mautrix-meta, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["mautrix-meta/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-signal-x86_64
+        vars: {DIR: mautrix-signal, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["mautrix-signal/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-signal-aarch64
+        vars: {DIR: mautrix-signal, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["mautrix-signal/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-telegram-x86_64
+        vars: {DIR: mautrix-telegram, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["mautrix-telegram/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-telegram-aarch64
+        vars: {DIR: mautrix-telegram, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["mautrix-telegram/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-whatsapp-x86_64
+        vars: {DIR: mautrix-whatsapp, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["mautrix-whatsapp/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: mautrix-whatsapp-aarch64
+        vars: {DIR: mautrix-whatsapp, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["mautrix-whatsapp/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: minecraft-x86_64
+        vars: {DIR: minecraft, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["minecraft/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: minecraft-aarch64
+        vars: {DIR: minecraft, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["minecraft/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: spliit-x86_64
+        vars: {DIR: spliit, ARCH: x86_64}
+        resources: medium-amd64
+        when: {changed: ["spliit/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}
+      - name: spliit-aarch64
+        vars: {DIR: spliit, ARCH: aarch64}
+        resources: medium-arm64
+        when: {changed: ["spliit/**", .chainguard/ci/packages.yaml, .chainguard/ci/env/melange.yaml]}

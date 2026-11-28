@@ -1,0 +1,9 @@
+# The environment of the checks that build and test melange packages.
+version: 1
+
+environment:
+  packages:
+    - bash
+    - bubblewrap
+    - git
+    - melange
