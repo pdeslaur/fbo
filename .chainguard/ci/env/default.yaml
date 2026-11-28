@@ -12,3 +12,8 @@ environment:
   vars:
     # Fail rather than download a newer toolchain than go-1.27 provides.
     GOTOOLCHAIN: local
+  # Shared through the pools of identities.yaml. gobuild also sets -count=1,
+  # so test results are never cached.
+  caches:
+    gobuild: {}
+    gomod: {}
