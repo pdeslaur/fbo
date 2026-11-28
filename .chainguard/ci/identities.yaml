@@ -1,0 +1,30 @@
+# Who Chainguard Checks trusts, and the Go build and module caches each trust
+# ring shares. Checks reads the trust section and the cache pools from main
+# alone, so a pull request can't change them.
+version: 1
+
+trust:
+  groups:
+    owner:
+      github: {user: {pdeslaur: 1692704}}
+    # The bots that open this repository's pull requests: octo-sts for the
+    # update and digests workflows, and Dependabot. The IDs are their bot
+    # users' IDs.
+    bots:
+      github: {app: {octo-sts: 157150467, dependabot: 49699333}}
+  subrings:
+    trusted:
+      authors: [owner, bots]
+  # Required once a trust section exists. Checks don't get the token.
+  github_token: 1.trusted
+  cache:
+    # Filled by the passing checks of each push to main.
+    trunk:
+      rings: [2]
+    # Pull requests from trusted authors start from trunk and fill their own
+    # pool. Pull requests from anyone else get no cache.
+    trusted:
+      rings: [1.trusted]
+      seed: trunk
+
+identities: {}

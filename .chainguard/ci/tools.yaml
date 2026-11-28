@@ -1,0 +1,85 @@
+# Chainguard Checks for the tools module, mirroring the lint and test jobs of
+# .github/workflows/ci.yaml. Each check runs in its own microVM with only the
+# packages of env/default.yaml, and reaches only the hosts its network.egress
+# lists.
+#
+# The checks are advisory while they run alongside the GitHub Actions CI, so
+# they report but never fail the "Chainguard Checks" summary.
+version: 1
+
+checks:
+  gofmt:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 5m
+    shell: bash
+    script: |
+      unformatted=$(gofmt -l .)
+      if [ -n "${unformatted}" ]; then
+          echo "Not formatted with gofmt:"
+          echo "${unformatted}"
+          exit 1
+      fi
+
+  go mod tidy:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 10m
+    network:
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
+    cmd: go mod tidy -diff
+
+  go vet:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 10m
+    network:
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
+    cmd: go vet ./...
+
+  staticcheck:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 10m
+    network:
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
+    cmd: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+  # gopls runs analyzers that vet and staticcheck don't, such as writestring.
+  # It prints its diagnostics but always exits zero.
+  gopls check:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 10m
+    network:
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
+    shell: bash
+    script: |
+      diagnostics=$(go run golang.org/x/tools/gopls@v0.24.0 check $(git ls-files '*.go'))
+      if [ -n "${diagnostics}" ]; then
+          echo "${diagnostics}"
+          exit 1
+      fi
+
+  govulncheck:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 10m
+    network:
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org, vuln.go.dev]
+    cmd: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  test:
+    advisory: true
+    trigger: [presubmit, postsubmit]
+    workdir: tools
+    timeout: 15m
+    network:
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
+    cmd: go test -race ./...
