@@ -39,7 +39,7 @@ checks:
     workdir: tools
     timeout: 10m
     network:
-      egress: [proxy.golang.org, sum.golang.org]
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
     cmd: go mod tidy -diff
 
   go vet:
@@ -48,7 +48,7 @@ checks:
     workdir: tools
     timeout: 10m
     network:
-      egress: [proxy.golang.org, sum.golang.org]
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
     cmd: go vet ./...
 
   staticcheck:
@@ -57,7 +57,7 @@ checks:
     workdir: tools
     timeout: 10m
     network:
-      egress: [proxy.golang.org, sum.golang.org]
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
     cmd: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 
   # gopls runs analyzers that vet and staticcheck don't, such as writestring.
@@ -68,7 +68,7 @@ checks:
     workdir: tools
     timeout: 10m
     network:
-      egress: [proxy.golang.org, sum.golang.org]
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
     shell: bash
     script: |
       diagnostics=$(go run golang.org/x/tools/gopls@v0.24.0 check $(git ls-files '*.go'))
@@ -83,7 +83,7 @@ checks:
     workdir: tools
     timeout: 10m
     network:
-      egress: [proxy.golang.org, sum.golang.org, vuln.go.dev]
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org, vuln.go.dev]
     cmd: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   test:
@@ -92,5 +92,5 @@ checks:
     workdir: tools
     timeout: 15m
     network:
-      egress: [proxy.golang.org, sum.golang.org]
+      egress: [proxy.golang.org, storage.googleapis.com, sum.golang.org]
     cmd: go test -race ./...
