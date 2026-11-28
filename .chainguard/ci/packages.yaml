@@ -15,6 +15,10 @@ checks:
       # registries, and each project's own downloads. The checks hold no
       # credentials.
       egress: ["*"]
+    vars:
+      # melange builds in TMPDIR, which defaults to /tmp, which Checks keeps
+      # in memory and is too small for the larger builds.
+      TMPDIR: /var/tmp
     shell: bash
     script: |
       set -o pipefail
@@ -28,6 +32,7 @@ checks:
       printf '%s\n' \
         SSL_CERT_FILE=/home/build/.checks-ca.pem \
         GIT_SSL_CAINFO=/home/build/.checks-ca.pem \
+        CARGO_HTTP_CAINFO=/home/build/.checks-ca.pem \
         >checks-ca.env
 
       melange keygen "melange-$ARCH.rsa"
